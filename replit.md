@@ -1,9 +1,10 @@
-# [Project name]
+# ECOMAJES
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Python Streamlit application.
 
 ## Run & Operate
 
+- `streamlit run app.py --server.port 5000` — run the ECOMAJES Streamlit app (workflow "Streamlit App", port 5000); entry point is `app.py`, config in `.streamlit/config.toml` (do not change server settings)
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
