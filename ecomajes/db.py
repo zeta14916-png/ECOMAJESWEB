@@ -525,3 +525,189 @@ def list_movements(
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard / Balance Financiero aggregations (read-only, additive)
+# --------------------------------------------------------------------------- #
+# Stock at or below this level (but above 0) counts as "stock bajo".
+LOW_STOCK_THRESHOLD = Decimal("5")
+
+_SIN_CATEGORIA = "(Sin categoría)"
+
+
+def list_categories(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+) -> list[str]:
+    """Return the distinct product categories in scope (from prices.categoria)."""
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append("p.sede = %s")
+        params.append(sede)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        f"SELECT DISTINCT COALESCE(pr.categoria, '{_SIN_CATEGORIA}') AS categoria "
+        "FROM products p LEFT JOIN prices pr ON pr.product_id = p.id "
+        f"{where} ORDER BY categoria"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [row["categoria"] for row in cur.fetchall()]
+
+
+def list_inventory(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    categoria: str | None = None,
+) -> list[dict]:
+    """Return products with their category and stock (for dashboard/alerts)."""
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append("p.sede = %s")
+        params.append(sede)
+    if categoria:
+        clauses.append(f"COALESCE(pr.categoria, '{_SIN_CATEGORIA}') = %s")
+        params.append(categoria)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT p.id, p.sede, p.material_tipo, p.nombre, p.unidad, p.stock, "
+        f"COALESCE(pr.categoria, '{_SIN_CATEGORIA}') AS categoria "
+        "FROM products p LEFT JOIN prices pr ON pr.product_id = p.id "
+        f"{where} ORDER BY p.sede, categoria, p.nombre"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def _sales_where(
+    sede: str | None,
+    include_all_sedes: bool,
+    date_from,
+    date_to,
+    categoria: str | None,
+) -> tuple[list[str], list]:
+    """WHERE clauses for venta aggregations (joins prices for category)."""
+    clauses = ["m.tipo = %s"]
+    params: list = [MOVEMENT_VENTA]
+    if not include_all_sedes and sede is not None:
+        clauses.append("m.sede = %s")
+        params.append(sede)
+    if date_from is not None:
+        clauses.append("m.created_at::date >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("m.created_at::date <= %s")
+        params.append(date_to)
+    if categoria:
+        clauses.append(f"COALESCE(pr.categoria, '{_SIN_CATEGORIA}') = %s")
+        params.append(categoria)
+    return clauses, params
+
+
+def _run_sales_agg(select: str, tail: str, clauses, params) -> list[dict]:
+    sql = (
+        f"SELECT {select} FROM movements m "
+        "JOIN products p ON p.id = m.product_id "
+        "LEFT JOIN prices pr ON pr.product_id = p.id "
+        f"WHERE {' AND '.join(clauses)} {tail}"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def sales_by_day(
+    sede=None, include_all_sedes=False, date_from=None, date_to=None, categoria=None
+) -> list[dict]:
+    """Total revenue and units per calendar day."""
+    clauses, params = _sales_where(
+        sede, include_all_sedes, date_from, date_to, categoria
+    )
+    return _run_sales_agg(
+        "m.created_at::date AS dia, "
+        "COALESCE(SUM(m.precio_total), 0) AS total, "
+        "COALESCE(SUM(m.cantidad), 0) AS unidades",
+        "GROUP BY dia ORDER BY dia",
+        clauses,
+        params,
+    )
+
+
+def sales_by_month(
+    sede=None, include_all_sedes=False, date_from=None, date_to=None, categoria=None
+) -> list[dict]:
+    """Total revenue per month (YYYY-MM)."""
+    clauses, params = _sales_where(
+        sede, include_all_sedes, date_from, date_to, categoria
+    )
+    return _run_sales_agg(
+        "to_char(date_trunc('month', m.created_at), 'YYYY-MM') AS mes, "
+        "COALESCE(SUM(m.precio_total), 0) AS total",
+        "GROUP BY mes ORDER BY mes",
+        clauses,
+        params,
+    )
+
+
+def sales_by_product(
+    sede=None,
+    include_all_sedes=False,
+    date_from=None,
+    date_to=None,
+    categoria=None,
+    order: str = "desc",
+    limit: int = 10,
+) -> list[dict]:
+    """Units + revenue per product, ordered by units sold (most/least)."""
+    clauses, params = _sales_where(
+        sede, include_all_sedes, date_from, date_to, categoria
+    )
+    direction = "ASC" if str(order).lower() == "asc" else "DESC"
+    params = list(params) + [limit]
+    return _run_sales_agg(
+        "p.id AS product_id, p.nombre AS producto, "
+        "p.sede AS sede, p.material_tipo AS material_tipo, "
+        "COALESCE(SUM(m.cantidad), 0) AS unidades, "
+        "COALESCE(SUM(m.precio_total), 0) AS total",
+        "GROUP BY p.id, p.nombre, p.sede, p.material_tipo "
+        f"ORDER BY unidades {direction}, p.nombre LIMIT %s",
+        clauses,
+        params,
+    )
+
+
+def sales_by_location(date_from=None, date_to=None, categoria=None) -> list[dict]:
+    """Total revenue per sede (always compares all locations)."""
+    clauses, params = _sales_where(None, True, date_from, date_to, categoria)
+    return _run_sales_agg(
+        "m.sede AS sede, COALESCE(SUM(m.precio_total), 0) AS total",
+        "GROUP BY m.sede ORDER BY m.sede",
+        clauses,
+        params,
+    )
+
+
+def expenses_by_month(
+    sede=None, include_all_sedes=False, date_from=None, date_to=None
+) -> list[dict]:
+    """Total expenses per month (YYYY-MM)."""
+    clauses, params = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
+    )
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT to_char(date_trunc('month', fecha), 'YYYY-MM') AS mes, "
+        "COALESCE(SUM(monto), 0) AS total "
+        f"FROM expenses {where} GROUP BY mes ORDER BY mes"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]

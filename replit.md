@@ -34,6 +34,7 @@ Python Streamlit application.
 - `ecomajes/views/movimientos.py` — register entrada/salida/venta (updates stock) + recent movements
 - `ecomajes/views/precios.py` — mini-Excel price sheet (`st.data_editor`): edit + save prices per product; used automatically for future ventas
 - `ecomajes/views/reporte_ventas.py` — sales report (page `adm_mn_reporte_ventas`): filter by period (Día/Semana/Mes/Año) + location (Principal/Sucursal/Empresa Completa); shows totals via `db.financial_summary`; add optional daily expenses + observations
+- `ecomajes/views/balance.py` — Balance Financiero + Dashboard (page `ger_balance_financiero`, GERENCIA): single screen with filters (ubicación/rango de fechas/categoría), 8 KPI cards (ventas día/mes, gastos día/mes, utilidad neta, productos vendidos, stock bajo, agotados), charts (ventas por día/mes, productos más/menos vendidos, ventas por sede, ingresos vs gastos, inventario por categoría), and an alerts block (stock bajo, agotados, comentarios pendientes placeholder, últimos movimientos). KPI cards use the location filter with fixed día/mes periods; the date-range + category filters drive the charts. Reuses existing data only (venta movements, expenses, stock, prices) — no data duplication
 - `ecomajes/views/_placeholder.py` — shared placeholder page for not-yet-built menu entries
 
 ## Data model

@@ -10,6 +10,7 @@ import streamlit as st
 from ecomajes import config, db, session
 from ecomajes.views import (
     _placeholder,
+    balance,
     inventario,
     movimientos,
     precios,
@@ -68,6 +69,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — financial balance + dashboard.
+    "ger_balance_financiero": {
+        "view": "balance",
+        "material_tipo": None,
+        "editable": True,
+    },
 }
 
 _VIEWS = {
@@ -75,6 +82,7 @@ _VIEWS = {
     "movimientos": movimientos.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,
+    "balance": balance.render,
 }
 
 
