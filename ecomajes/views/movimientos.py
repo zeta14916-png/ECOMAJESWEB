@@ -41,6 +41,16 @@ def _recent_movements(ctx: dict) -> None:
             "Tipo": db.MOVEMENT_LABELS.get(m["tipo"], m["tipo"]),
             "Cantidad": float(m["cantidad"]),
             "Unidad": m["unidad"],
+            "Precio unit.": (
+                float(m["precio_unitario"])
+                if m["precio_unitario"] is not None
+                else None
+            ),
+            "Total": (
+                float(m["precio_total"])
+                if m["precio_total"] is not None
+                else None
+            ),
             "Nota": m["nota"] or "—",
         }
         for m in movements

@@ -11,4 +11,6 @@ description: Durable build rules for the ECOMAJES ERP (steel & hardware, Streaml
 
 **Consolidated views (Empresa Completa / all material types) can show two products with the same name/sede/unit.** Always key Streamlit selection widgets by the product `id` (format_func for display), never by the display label — label-keyed dicts silently collide and route a movement to the wrong row.
 
+**Sale prices are snapshotted, not live-joined.** On a `venta`, `register_movement` copies the current `prices.precio` into `movements.precio_unitario`/`precio_total` inside the same transaction. Future sales/reports must read those snapshot columns — do NOT re-join to `prices` (that would show the current price, not the price at sale time).
+
 **Auth hardening is deferred:** "simple vs strong password" is expressed by configured env values, not an enforced strength policy. Dev fallback passwords exist and must be removed / fail-closed before production — only do this once the user approves the auth-hardening phase.
