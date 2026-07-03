@@ -23,15 +23,23 @@ Python Streamlit application.
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `app.py` — entry point; wires session init, login gate, and navigation only
+- `ecomajes/config.py` — source of truth for roles, sedes, modules, and the access matrix (`get_available_modules`)
+- `ecomajes/auth.py` — password requirements per role (reads env vars `ECOMAJES_ADMIN_PASSWORD`, `ECOMAJES_GERENCIA_PASSWORD`)
+- `ecomajes/session.py` — session-state helpers (login/logout, active module)
+- `ecomajes/login.py` — login screen (role + sede + password)
+- `ecomajes/navigation.py` — role/sede-based sidebar and module routing
+- `ecomajes/views/` — one placeholder per module; each exposes `render()`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Roles/sedes/modules and access are centralized in `config.py`; module→render mapping lives in `navigation.py` to keep `config.py` import-free (avoids circular deps)
+- Auth is scaffolded (not yet hardened): passwords come from env vars with dev fallbacks. "Simple vs strong password" is currently expressed by the configured values, not an enforced strength policy
+- GERENCIA selects a sede for data context but gets all modules regardless of sede
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+ERP for a steel & hardware company (acero y ferretería). Three roles — OPERARIOS (no password), ÁREA ADMINISTRATIVA (password), GERENCIA (password) — each with role/sede-scoped modules. Business logic per module is built incrementally, one module at a time, after approval.
 
 ## User preferences
 
