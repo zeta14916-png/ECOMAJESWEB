@@ -1,7 +1,7 @@
 """Session state helpers for ECOMAJES ERP.
 
 Thin wrappers around st.session_state so the rest of the app never touches raw
-keys directly. Keeps login/logout state and the active module in one place.
+keys directly. Keeps login/logout state and the active page in one place.
 """
 
 import streamlit as st
@@ -10,7 +10,7 @@ import streamlit as st
 KEY_ROLE = "role"
 KEY_SEDE = "sede"
 KEY_AUTHENTICATED = "authenticated"
-KEY_ACTIVE_MODULE = "active_module"
+KEY_ACTIVE_PAGE = "active_page"
 
 
 def init_state() -> None:
@@ -18,7 +18,7 @@ def init_state() -> None:
     st.session_state.setdefault(KEY_ROLE, None)
     st.session_state.setdefault(KEY_SEDE, None)
     st.session_state.setdefault(KEY_AUTHENTICATED, False)
-    st.session_state.setdefault(KEY_ACTIVE_MODULE, None)
+    st.session_state.setdefault(KEY_ACTIVE_PAGE, None)
 
 
 def is_authenticated() -> bool:
@@ -31,7 +31,7 @@ def login(role: str, sede: str) -> None:
     st.session_state[KEY_ROLE] = role
     st.session_state[KEY_SEDE] = sede
     st.session_state[KEY_AUTHENTICATED] = True
-    st.session_state[KEY_ACTIVE_MODULE] = None
+    st.session_state[KEY_ACTIVE_PAGE] = None
 
 
 def logout() -> None:
@@ -39,7 +39,7 @@ def logout() -> None:
     st.session_state[KEY_ROLE] = None
     st.session_state[KEY_SEDE] = None
     st.session_state[KEY_AUTHENTICATED] = False
-    st.session_state[KEY_ACTIVE_MODULE] = None
+    st.session_state[KEY_ACTIVE_PAGE] = None
 
 
 def current_role() -> str | None:
@@ -50,9 +50,9 @@ def current_sede() -> str | None:
     return st.session_state.get(KEY_SEDE)
 
 
-def active_module() -> str | None:
-    return st.session_state.get(KEY_ACTIVE_MODULE)
+def active_page() -> str | None:
+    return st.session_state.get(KEY_ACTIVE_PAGE)
 
 
-def set_active_module(module_key: str) -> None:
-    st.session_state[KEY_ACTIVE_MODULE] = module_key
+def set_active_page(page_key: str) -> None:
+    st.session_state[KEY_ACTIVE_PAGE] = page_key

@@ -1,0 +1,1 @@
+- [ECOMAJES ERP navigation](ecomajes-erp-nav.md) — role/sede-scoped nav tree is the source of truth in config.py; build modules one at a time only after user approval.

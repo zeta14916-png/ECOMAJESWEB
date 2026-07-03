@@ -24,12 +24,12 @@ Python Streamlit application.
 ## Where things live
 
 - `app.py` — entry point; wires session init, login gate, and navigation only
-- `ecomajes/config.py` — source of truth for roles, sedes, modules, and the access matrix (`get_available_modules`)
+- `ecomajes/config.py` — source of truth for roles, sedes, and the navigation tree (`get_navigation(role, sede)`, `get_sedes(role)`); uses `Page` (leaf) and `Group` (sub-menu) dataclasses
 - `ecomajes/auth.py` — password requirements per role (reads env vars `ECOMAJES_ADMIN_PASSWORD`, `ECOMAJES_GERENCIA_PASSWORD`)
-- `ecomajes/session.py` — session-state helpers (login/logout, active module)
-- `ecomajes/login.py` — login screen (role + sede + password)
-- `ecomajes/navigation.py` — role/sede-based sidebar and module routing
-- `ecomajes/views/` — one placeholder per module; each exposes `render()`
+- `ecomajes/session.py` — session-state helpers (login/logout, active page)
+- `ecomajes/login.py` — login screen (role + sede + password); sede options depend on role
+- `ecomajes/navigation.py` — role/sede-based sidebar (flat + grouped) and page routing
+- `ecomajes/views/_placeholder.py` — single shared placeholder page for all menu entries (no per-page files)
 
 ## Architecture decisions
 

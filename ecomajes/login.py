@@ -1,7 +1,8 @@
 """Login screen for ECOMAJES ERP.
 
 Renders the role selection, sede selection and (when required) password entry.
-On success it stores the session and reruns into the main application.
+The available sede options depend on the chosen role — GERENCIA additionally
+sees the consolidated "Empresa Completa" scope.
 """
 
 import streamlit as st
@@ -17,7 +18,7 @@ def render_login() -> None:
     st.subheader("Ingreso")
 
     role = st.selectbox("Rol", config.ROLES, index=0)
-    sede = st.radio("Sede", config.SEDES, horizontal=True)
+    sede = st.radio("Sede", config.get_sedes(role))
 
     password = ""
     if auth.requires_password(role):

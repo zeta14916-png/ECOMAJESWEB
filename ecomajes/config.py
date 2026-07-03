@@ -1,10 +1,13 @@
 """Central configuration for ECOMAJES ERP.
 
-Defines roles, sedes (locations), modules and the access matrix that maps each
-role + sede combination to the set of modules it is allowed to see.
+Defines roles, sedes (locations) and the navigation tree that maps each role +
+sede combination to its menu structure. Menus may be flat (a list of pages) or
+grouped (a labelled group containing sub-pages).
 
 This file holds NO business logic. It only describes the structure of the app.
 """
+
+from dataclasses import dataclass
 
 # --------------------------------------------------------------------------- #
 # Roles
@@ -27,67 +30,108 @@ ROLE_REQUIRES_PASSWORD = {
 # --------------------------------------------------------------------------- #
 SEDE_PRINCIPAL = "Sede Principal"
 SEDE_SUCURSAL = "Sucursal"
+SEDE_EMPRESA_COMPLETA = "Empresa Completa"  # consolidated view (GERENCIA only)
 
-SEDES = [SEDE_PRINCIPAL, SEDE_SUCURSAL]
-
-# --------------------------------------------------------------------------- #
-# Modules
-# --------------------------------------------------------------------------- #
-INVENTARIO = "inventario"
-ALERTAS = "alertas"
-HISTORIAL = "historial"
-COMENTARIOS = "comentarios"
-MATERIAL_NUEVO = "material_nuevo"
-MATERIAL_SEGUNDO_USO = "material_segundo_uso"
-
-# Metadata used to render menu entries. `label` is shown to the user, `icon`
-# is a small emoji marker for the sidebar.
-MODULES = {
-    INVENTARIO: {"label": "Inventario", "icon": "📦"},
-    ALERTAS: {"label": "Alertas", "icon": "🔔"},
-    HISTORIAL: {"label": "Historial", "icon": "🕓"},
-    COMENTARIOS: {"label": "Comentarios", "icon": "💬"},
-    MATERIAL_NUEVO: {"label": "Material Nuevo", "icon": "🆕"},
-    MATERIAL_SEGUNDO_USO: {"label": "Material Segundo Uso", "icon": "♻️"},
+# Sede options offered at login, per role. GERENCIA additionally sees the
+# consolidated "Empresa Completa" scope.
+_SEDES_BY_ROLE = {
+    ROLE_OPERARIOS: [SEDE_PRINCIPAL, SEDE_SUCURSAL],
+    ROLE_ADMINISTRATIVA: [SEDE_PRINCIPAL, SEDE_SUCURSAL],
+    ROLE_GERENCIA: [SEDE_PRINCIPAL, SEDE_SUCURSAL, SEDE_EMPRESA_COMPLETA],
 }
 
-# --------------------------------------------------------------------------- #
-# Access matrix
-# --------------------------------------------------------------------------- #
-# Modules available to OPERARIOS (same for every sede).
-_OPERARIOS_MODULES = [INVENTARIO, ALERTAS, HISTORIAL, COMENTARIOS]
 
-# Modules available to ÁREA ADMINISTRATIVA, which depend on the chosen sede.
-_ADMINISTRATIVA_MODULES = {
-    SEDE_PRINCIPAL: [MATERIAL_NUEVO, MATERIAL_SEGUNDO_USO],
-    SEDE_SUCURSAL: [MATERIAL_NUEVO],
+def get_sedes(role: str) -> list[str]:
+    """Return the sede options a role may choose at login."""
+    return list(_SEDES_BY_ROLE.get(role, [SEDE_PRINCIPAL, SEDE_SUCURSAL]))
+
+
+# --------------------------------------------------------------------------- #
+# Navigation model
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class Page:
+    """A leaf menu entry that renders a placeholder page."""
+
+    key: str  # unique across the whole app (used for routing)
+    label: str
+
+
+@dataclass(frozen=True)
+class Group:
+    """A labelled group of pages (a second navigation level)."""
+
+    label: str
+    icon: str
+    pages: tuple[Page, ...]
+
+
+# --- OPERARIOS ------------------------------------------------------------- #
+# Same four pages for either sede.
+_OPERARIOS_NAV: list = [
+    Page("op_inventario", "Inventario"),
+    Page("op_alertas", "Alertas"),
+    Page("op_historial", "Historial"),
+    Page("op_comentarios", "Comentarios"),
+]
+
+# --- ÁREA ADMINISTRATIVA --------------------------------------------------- #
+_ADMIN_MATERIAL_NUEVO = Group(
+    label="Material Nuevo",
+    icon="🆕",
+    pages=(
+        Page("adm_mn_inventario", "Inventario"),
+        Page("adm_mn_entrada_movimientos", "Entrada de Movimientos"),
+        Page("adm_mn_reporte_ventas", "Reporte de Ventas"),
+        Page("adm_mn_reportes", "Reportes"),
+    ),
+)
+
+_ADMIN_MATERIAL_SEGUNDO_USO = Group(
+    label="Material Segundo Uso",
+    icon="♻️",
+    pages=(
+        Page("adm_msu_inventario", "Inventario"),
+        Page("adm_msu_registrar_producto", "Registrar Producto Nuevo"),
+        Page("adm_msu_registrar_movimientos", "Registrar Movimientos"),
+        Page("adm_msu_reportes", "Reportes"),
+    ),
+)
+
+_ADMINISTRATIVA_NAV = {
+    SEDE_PRINCIPAL: [_ADMIN_MATERIAL_NUEVO, _ADMIN_MATERIAL_SEGUNDO_USO],
+    SEDE_SUCURSAL: [_ADMIN_MATERIAL_NUEVO],
 }
 
-# GERENCIA can access every module regardless of sede.
-_GERENCIA_MODULES = [
-    INVENTARIO,
-    ALERTAS,
-    HISTORIAL,
-    COMENTARIOS,
-    MATERIAL_NUEVO,
-    MATERIAL_SEGUNDO_USO,
+# --- GERENCIA -------------------------------------------------------------- #
+# Same modules regardless of the chosen sede scope (incl. Empresa Completa).
+_GERENCIA_NAV: list = [
+    Page("ger_productos", "Productos"),
+    Page("ger_precios", "Precios"),
+    Page("ger_recursos_humanos", "Recursos Humanos"),
+    Page("ger_gestion_inventario", "Gestión de Inventario"),
+    Page("ger_reportes", "Reportes"),
+    Page("ger_balance_financiero", "Balance Financiero"),
+    Page("ger_configuracion", "Configuración"),
+    Page("ger_comentarios", "Comentarios"),
+    Page("ger_auditoria", "Auditoría"),
 ]
 
 
-def get_available_modules(role: str, sede: str) -> list[str]:
-    """Return the ordered list of module keys allowed for a role + sede.
+def get_navigation(role: str, sede: str) -> list:
+    """Return the navigation items (Page or Group) for a role + sede.
 
     Args:
         role: One of the ROLE_* constants.
         sede: One of the SEDE_* constants.
 
     Returns:
-        List of module keys (subset of MODULES) the user may access.
+        Ordered list whose items are either Page or Group instances.
     """
     if role == ROLE_OPERARIOS:
-        return list(_OPERARIOS_MODULES)
+        return list(_OPERARIOS_NAV)
     if role == ROLE_ADMINISTRATIVA:
-        return list(_ADMINISTRATIVA_MODULES.get(sede, []))
+        return list(_ADMINISTRATIVA_NAV.get(sede, []))
     if role == ROLE_GERENCIA:
-        return list(_GERENCIA_MODULES)
+        return list(_GERENCIA_NAV)
     return []
