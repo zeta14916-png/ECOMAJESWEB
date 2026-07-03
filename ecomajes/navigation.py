@@ -14,6 +14,7 @@ from ecomajes.views import (
     inventario,
     movimientos,
     precios,
+    productos,
     reporte_ventas,
 )
 
@@ -75,6 +76,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — product catalog (all sedes when Empresa Completa).
+    "ger_productos": {
+        "view": "productos",
+        "material_tipo": None,
+        "editable": True,
+    },
 }
 
 _VIEWS = {
@@ -83,6 +90,7 @@ _VIEWS = {
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,
     "balance": balance.render,
+    "productos": productos.render,
 }
 
 

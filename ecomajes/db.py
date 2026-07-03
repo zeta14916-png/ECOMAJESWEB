@@ -124,6 +124,167 @@ def add_product(
 
 
 # --------------------------------------------------------------------------- #
+# Product catalog (catálogo de productos) — extended fields on `products`
+# --------------------------------------------------------------------------- #
+# Catalog columns edited from the GERENCIA > Productos page. `nombre` is the
+# existing NOT NULL / unique identifier; on create it is seeded from the
+# descripcion so the catalog only needs to expose the fields below. On update
+# `nombre` and `stock` are left untouched (they belong to the inventory view).
+CATALOG_FIELDS = (
+    "codigo",
+    "descripcion",
+    "categoria",
+    "unidad",
+    "tipo_venta",
+    "peso",
+    "stock_minimo",
+    "observaciones",
+    "activo",
+)
+
+
+def list_catalog_products(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    search: str | None = None,
+) -> list[dict]:
+    """Return catalog products, optionally scoped by sede and a text search.
+
+    The search matches (case-insensitively) against codigo or descripcion.
+    """
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append("sede = %s")
+        params.append(sede)
+    if search:
+        clauses.append("(codigo ILIKE %s OR descripcion ILIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, sede, material_tipo, nombre, codigo, descripcion, categoria, "
+        "unidad, tipo_venta, peso, stock_minimo, observaciones, activo, stock, "
+        "created_at "
+        f"FROM products {where} "
+        "ORDER BY codigo NULLS LAST, descripcion NULLS LAST, nombre"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def create_catalog_product(
+    sede: str,
+    descripcion: str,
+    codigo: str | None = None,
+    categoria: str | None = None,
+    unidad: str = "unidad",
+    tipo_venta: str = VENTA_UNIDAD,
+    peso: Decimal | None = None,
+    stock_minimo: Decimal = Decimal("0"),
+    observaciones: str | None = None,
+    activo: bool = True,
+    material_tipo: str = TIPO_NUEVO,
+) -> None:
+    """Insert a catalog product. `nombre` is seeded from the description."""
+    if tipo_venta not in TIPO_VENTA_LABELS:
+        raise ValueError(f"Tipo de venta inválido: {tipo_venta}")
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO products
+                        (sede, material_tipo, nombre, codigo, descripcion,
+                         categoria, unidad, tipo_venta, peso, stock_minimo,
+                         observaciones, activo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        sede,
+                        material_tipo,
+                        descripcion,
+                        codigo,
+                        descripcion,
+                        categoria,
+                        unidad,
+                        tipo_venta,
+                        peso,
+                        stock_minimo,
+                        observaciones,
+                        activo,
+                    ),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def update_catalog_product(
+    product_id: int,
+    descripcion: str,
+    codigo: str | None,
+    categoria: str | None,
+    unidad: str,
+    tipo_venta: str,
+    peso: Decimal | None,
+    stock_minimo: Decimal,
+    observaciones: str | None,
+    activo: bool,
+) -> None:
+    """Update the catalog fields of a product (leaves `nombre`/`stock` intact)."""
+    if tipo_venta not in TIPO_VENTA_LABELS:
+        raise ValueError(f"Tipo de venta inválido: {tipo_venta}")
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE products SET
+                        codigo = %s, descripcion = %s, categoria = %s,
+                        unidad = %s, tipo_venta = %s, peso = %s,
+                        stock_minimo = %s, observaciones = %s, activo = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        codigo,
+                        descripcion,
+                        categoria,
+                        unidad,
+                        tipo_venta,
+                        peso,
+                        stock_minimo,
+                        observaciones,
+                        activo,
+                        product_id,
+                    ),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def set_product_active(product_id: int, activo: bool) -> None:
+    """Activate or deactivate a product (Estado)."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE products SET activo = %s WHERE id = %s",
+                    (activo, product_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+# --------------------------------------------------------------------------- #
 # Prices (price list linked to products)
 # --------------------------------------------------------------------------- #
 # Editable price fields stored in the `prices` table (one row per product).
