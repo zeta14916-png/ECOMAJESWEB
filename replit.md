@@ -28,8 +28,18 @@ Python Streamlit application.
 - `ecomajes/auth.py` — password requirements per role (reads env vars `ECOMAJES_ADMIN_PASSWORD`, `ECOMAJES_GERENCIA_PASSWORD`)
 - `ecomajes/session.py` — session-state helpers (login/logout, active page)
 - `ecomajes/login.py` — login screen (role + sede + password); sede options depend on role
-- `ecomajes/navigation.py` — role/sede-based sidebar (flat + grouped) and page routing
-- `ecomajes/views/_placeholder.py` — single shared placeholder page for all menu entries (no per-page files)
+- `ecomajes/navigation.py` — role/sede-based sidebar (flat + grouped) + `ROUTES` table mapping page keys to real views; unlisted pages fall back to the placeholder
+- `ecomajes/db.py` — PostgreSQL data layer (psycopg2 pool via `DATABASE_URL`); products + movements with atomic stock updates (`register_movement`, raises `StockError`)
+- `ecomajes/views/inventario.py` — product list + add-product form (scoped by sede/material type)
+- `ecomajes/views/movimientos.py` — register entrada/salida/venta (updates stock) + recent movements
+- `ecomajes/views/_placeholder.py` — shared placeholder page for not-yet-built menu entries
+
+## Data model
+
+- `products` (id, sede, material_tipo ['nuevo'|'segundo_uso'], nombre, sku, unidad, stock, created_at); unique on (sede, material_tipo, nombre)
+- `movements` (id, product_id→products, tipo ['entrada'|'salida'|'venta'], cantidad, nota, usuario_rol, sede, created_at)
+- Stock is stored on `products.stock` and mutated only via `db.register_movement` inside a `SELECT … FOR UPDATE` transaction; entrada adds, salida/venta subtract, negative stock is rejected
+- Schema is created in the dev DB via SQL; production schema is applied by Replit's Publish flow (do not write migration scripts or startup DDL)
 
 ## Architecture decisions
 

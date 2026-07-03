@@ -1,14 +1,62 @@
 """Navigation and routing for ECOMAJES ERP.
 
 Builds the sidebar menu (flat pages and grouped pages) based on the logged-in
-role + sede and dispatches to the selected page. Every page currently renders a
-shared placeholder — business logic is added later, one module at a time.
+role + sede and dispatches to the selected page. Pages listed in ROUTES render a
+real module view; every other page renders the shared placeholder.
 """
 
 import streamlit as st
 
-from ecomajes import config, session
-from ecomajes.views import _placeholder
+from ecomajes import config, db, session
+from ecomajes.views import _placeholder, inventario, movimientos
+
+# --------------------------------------------------------------------------- #
+# Routing table: page key -> which real view to render and with what scope.
+# Any page not listed here falls back to the placeholder.
+# --------------------------------------------------------------------------- #
+ROUTES = {
+    # OPERARIOS — read-only inventory for the chosen sede.
+    "op_inventario": {"view": "inventario", "material_tipo": None, "editable": False},
+    # ÁREA ADMINISTRATIVA — Material Nuevo.
+    "adm_mn_inventario": {
+        "view": "inventario",
+        "material_tipo": db.TIPO_NUEVO,
+        "editable": True,
+    },
+    "adm_mn_entrada_movimientos": {
+        "view": "movimientos",
+        "material_tipo": db.TIPO_NUEVO,
+        "editable": True,
+    },
+    # ÁREA ADMINISTRATIVA — Material Segundo Uso.
+    "adm_msu_inventario": {
+        "view": "inventario",
+        "material_tipo": db.TIPO_SEGUNDO_USO,
+        "editable": True,
+    },
+    "adm_msu_registrar_producto": {
+        "view": "inventario",
+        "material_tipo": db.TIPO_SEGUNDO_USO,
+        "editable": True,
+        "focus_add": True,
+    },
+    "adm_msu_registrar_movimientos": {
+        "view": "movimientos",
+        "material_tipo": db.TIPO_SEGUNDO_USO,
+        "editable": True,
+    },
+    # GERENCIA — consolidated inventory management (all material types).
+    "ger_gestion_inventario": {
+        "view": "inventario",
+        "material_tipo": None,
+        "editable": True,
+    },
+}
+
+_VIEWS = {
+    "inventario": inventario.render,
+    "movimientos": movimientos.render,
+}
 
 
 def _iter_pages(nav: list):
@@ -68,6 +116,22 @@ def _breadcrumb(role: str, sede: str, group_label: str | None) -> str:
     return " · ".join(parts)
 
 
+def _build_context(page, group_label, role, sede, route) -> dict:
+    """Assemble the context dict passed to a real view."""
+    include_all = sede == config.SEDE_EMPRESA_COMPLETA
+    return {
+        "title": page.label,
+        "breadcrumb": _breadcrumb(role, sede, group_label),
+        "sede": sede,
+        "material_tipo": route.get("material_tipo"),
+        "include_all_sedes": include_all,
+        "editable": route.get("editable", False),
+        "focus_add": route.get("focus_add", False),
+        "usuario_rol": role,
+        "sede_options": [config.SEDE_PRINCIPAL, config.SEDE_SUCURSAL],
+    }
+
+
 def render_app() -> None:
     """Render the authenticated application: sidebar + active page."""
     role = session.current_role()
@@ -90,4 +154,10 @@ def render_app() -> None:
             return
 
     page, group_label = index[active]
-    _placeholder.render_page(page.label, _breadcrumb(role, sede, group_label))
+    route = ROUTES.get(page.key)
+
+    if route:
+        ctx = _build_context(page, group_label, role, sede, route)
+        _VIEWS[route["view"]](ctx)
+    else:
+        _placeholder.render_page(page.label, _breadcrumb(role, sede, group_label))
