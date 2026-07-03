@@ -39,7 +39,7 @@ Python Streamlit application.
 
 ## Data model
 
-- `products` (id, sede, material_tipo ['nuevo'|'segundo_uso'], nombre, sku, unidad, stock, created_at); unique on (sede, material_tipo, nombre)
+- `products` (id, sede, material_tipo ['nuevo'|'segundo_uso'], nombre, sku, unidad, stock, created_at); unique on (sede, material_tipo, nombre). Catálogo de productos fields also live here (products IS the inventory/catalog table): `codigo` (partial-unique when not null), `descripcion`, `categoria`, `tipo_venta` (CHECK-constrained: 'unidad'|'metro'|'centimetro'|'plancha_completa'|'corte_personalizado', default 'unidad'), `peso`, `stock_minimo` (>= 0, default 0), `observaciones`, `activo` (bool, default true = Estado activo/inactivo). `unidad` is the existing column reused for Unidad. Sale-type keys/labels are defined in `db.py` (`VENTA_*`, `TIPO_VENTA_LABELS`). Corte personalizado stores only the sale type + observaciones for now (no cutting calculations yet)
 - `movements` (id, product_id→products, tipo ['entrada'|'salida'|'venta'], cantidad, nota, usuario_rol, sede, created_at, precio_unitario, precio_total); on `venta` the unit price is snapshotted from `prices` into `precio_unitario`/`precio_total`. Sales = venta movements (source of truth for the sales report)
 - `prices` (id, product_id→products UNIQUE, codigo, descripcion, categoria, unidad, peso, precio, p1, p2, p3, precio_minimo, precio_sugerido, observaciones, created_at, updated_at); one row per product, upserted via `db.save_prices`
 - `expenses` (id, fecha, descripcion, monto, sede, usuario_rol, created_at); daily expenses per location, feed `db.financial_summary` net-income and future Balance Financiero

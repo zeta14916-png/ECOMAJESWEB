@@ -24,6 +24,14 @@ MOVEMENT_ENTRADA = "entrada"
 MOVEMENT_SALIDA = "salida"
 MOVEMENT_VENTA = "venta"
 
+# Catálogo de productos — allowed "tipo de venta" (sale type) values.
+# Stored on products.tipo_venta (CHECK-constrained in the DB).
+VENTA_UNIDAD = "unidad"
+VENTA_METRO = "metro"
+VENTA_CENTIMETRO = "centimetro"
+VENTA_PLANCHA_COMPLETA = "plancha_completa"
+VENTA_CORTE_PERSONALIZADO = "corte_personalizado"
+
 # Human-readable labels for material types and movement types.
 TIPO_LABELS = {
     TIPO_NUEVO: "Material Nuevo",
@@ -33,6 +41,13 @@ MOVEMENT_LABELS = {
     MOVEMENT_ENTRADA: "Entrada",
     MOVEMENT_SALIDA: "Salida",
     MOVEMENT_VENTA: "Venta",
+}
+TIPO_VENTA_LABELS = {
+    VENTA_UNIDAD: "Unidad",
+    VENTA_METRO: "Metro",
+    VENTA_CENTIMETRO: "Centímetro",
+    VENTA_PLANCHA_COMPLETA: "Plancha completa",
+    VENTA_CORTE_PERSONALIZADO: "Corte personalizado",
 }
 
 # Movement types that add to stock vs. remove from stock.
