@@ -33,13 +33,17 @@ Python Streamlit application.
 - `ecomajes/views/inventario.py` — product list + add-product form (scoped by sede/material type)
 - `ecomajes/views/movimientos.py` — register entrada/salida/venta (updates stock) + recent movements
 - `ecomajes/views/precios.py` — mini-Excel price sheet (`st.data_editor`): edit + save prices per product; used automatically for future ventas
+- `ecomajes/views/reporte_ventas.py` — sales report (page `adm_mn_reporte_ventas`): filter by period (Día/Semana/Mes/Año) + location (Principal/Sucursal/Empresa Completa); shows totals via `db.financial_summary`; add optional daily expenses + observations
 - `ecomajes/views/_placeholder.py` — shared placeholder page for not-yet-built menu entries
 
 ## Data model
 
 - `products` (id, sede, material_tipo ['nuevo'|'segundo_uso'], nombre, sku, unidad, stock, created_at); unique on (sede, material_tipo, nombre)
-- `movements` (id, product_id→products, tipo ['entrada'|'salida'|'venta'], cantidad, nota, usuario_rol, sede, created_at, precio_unitario, precio_total); on `venta` the unit price is snapshotted from `prices` into `precio_unitario`/`precio_total`
+- `movements` (id, product_id→products, tipo ['entrada'|'salida'|'venta'], cantidad, nota, usuario_rol, sede, created_at, precio_unitario, precio_total); on `venta` the unit price is snapshotted from `prices` into `precio_unitario`/`precio_total`. Sales = venta movements (source of truth for the sales report)
 - `prices` (id, product_id→products UNIQUE, codigo, descripcion, categoria, unidad, peso, precio, p1, p2, p3, precio_minimo, precio_sugerido, observaciones, created_at, updated_at); one row per product, upserted via `db.save_prices`
+- `expenses` (id, fecha, descripcion, monto, sede, usuario_rol, created_at); daily expenses per location, feed `db.financial_summary` net-income and future Balance Financiero
+- `daily_observations` (id, fecha, sede, observacion, usuario_rol, created_at); optional daily notes per location
+- `db.financial_summary(sede, include_all_sedes, date_from, date_to)` — shared aggregate (total_sales, total_products, total_revenue, total_expenses, net_income); reusable by Balance Financiero later
 - Stock is stored on `products.stock` and mutated only via `db.register_movement` inside a `SELECT … FOR UPDATE` transaction; entrada adds, salida/venta subtract, negative stock is rejected
 - Schema is created in the dev DB via SQL; production schema is applied by Replit's Publish flow (do not write migration scripts or startup DDL)
 

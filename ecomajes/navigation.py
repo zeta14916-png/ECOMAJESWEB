@@ -8,7 +8,13 @@ real module view; every other page renders the shared placeholder.
 import streamlit as st
 
 from ecomajes import config, db, session
-from ecomajes.views import _placeholder, inventario, movimientos, precios
+from ecomajes.views import (
+    _placeholder,
+    inventario,
+    movimientos,
+    precios,
+    reporte_ventas,
+)
 
 # --------------------------------------------------------------------------- #
 # Routing table: page key -> which real view to render and with what scope.
@@ -26,6 +32,11 @@ ROUTES = {
     "adm_mn_entrada_movimientos": {
         "view": "movimientos",
         "material_tipo": db.TIPO_NUEVO,
+        "editable": True,
+    },
+    "adm_mn_reporte_ventas": {
+        "view": "reporte_ventas",
+        "material_tipo": None,
         "editable": True,
     },
     # ÁREA ADMINISTRATIVA — Material Segundo Uso.
@@ -63,6 +74,7 @@ _VIEWS = {
     "inventario": inventario.render,
     "movimientos": movimientos.render,
     "precios": precios.render,
+    "reporte_ventas": reporte_ventas.render,
 }
 
 

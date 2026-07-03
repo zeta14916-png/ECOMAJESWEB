@@ -293,6 +293,209 @@ def register_movement(
             raise
 
 
+# --------------------------------------------------------------------------- #
+# Sales reports: sales (derived from venta movements), expenses, observations
+# --------------------------------------------------------------------------- #
+def _date_scope_clauses(
+    sede: str | None,
+    include_all_sedes: bool,
+    date_from,
+    date_to,
+    sede_col: str,
+    date_col: str,
+) -> tuple[list[str], list]:
+    """Build shared WHERE clauses for sede + date-range filtering."""
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append(f"{sede_col} = %s")
+        params.append(sede)
+    if date_from is not None:
+        clauses.append(f"{date_col} >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append(f"{date_col} <= %s")
+        params.append(date_to)
+    return clauses, params
+
+
+def list_sales(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+) -> list[dict]:
+    """Return individual sales (venta movements) with full detail.
+
+    Each row carries date, user, product, quantity, unit price, total price and
+    location, satisfying the "every sale must include ..." requirement.
+    """
+    clauses = ["m.tipo = %s"]
+    params: list = [MOVEMENT_VENTA]
+    extra_clauses, extra_params = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "m.sede", "m.created_at::date"
+    )
+    clauses.extend(extra_clauses)
+    params.extend(extra_params)
+
+    where = f"WHERE {' AND '.join(clauses)}"
+    sql = (
+        "SELECT m.id, m.created_at, m.usuario_rol, m.cantidad, "
+        "m.precio_unitario, m.precio_total, m.sede, "
+        "p.nombre AS producto, p.unidad "
+        "FROM movements m JOIN products p ON p.id = m.product_id "
+        f"{where} ORDER BY m.created_at DESC"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def add_expense(
+    fecha,
+    descripcion: str,
+    monto: Decimal,
+    sede: str,
+    usuario_rol: str | None,
+) -> None:
+    """Record a daily expense for a location."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO expenses (fecha, descripcion, monto, sede, usuario_rol)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (fecha, descripcion, monto, sede, usuario_rol),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_expenses(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+) -> list[dict]:
+    """Return expenses filtered by location and date range."""
+    clauses, params = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
+    )
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, fecha, descripcion, monto, sede, usuario_rol, created_at "
+        f"FROM expenses {where} ORDER BY fecha DESC, id DESC"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def add_observation(
+    fecha,
+    sede: str,
+    observacion: str,
+    usuario_rol: str | None,
+) -> None:
+    """Record a daily observation for a location."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO daily_observations
+                        (fecha, sede, observacion, usuario_rol)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (fecha, sede, observacion, usuario_rol),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_observations(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+) -> list[dict]:
+    """Return observations filtered by location and date range."""
+    clauses, params = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
+    )
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, fecha, sede, observacion, usuario_rol, created_at "
+        f"FROM daily_observations {where} ORDER BY fecha DESC, id DESC"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def financial_summary(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+) -> dict:
+    """Aggregate sales + expenses into the metrics used by reports.
+
+    Returns a dict with total_sales (transaction count), total_products
+    (units sold), total_revenue, total_expenses and net_income. This is the
+    shared data structure that Balance Financiero will reuse later.
+    """
+    # Sales aggregates from venta movements.
+    sales_clauses = ["tipo = %s"]
+    sales_params: list = [MOVEMENT_VENTA]
+    c, p = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "sede", "created_at::date"
+    )
+    sales_clauses.extend(c)
+    sales_params.extend(p)
+    sales_sql = (
+        "SELECT COUNT(*) AS total_sales, "
+        "COALESCE(SUM(cantidad), 0) AS total_products, "
+        "COALESCE(SUM(precio_total), 0) AS total_revenue "
+        f"FROM movements WHERE {' AND '.join(sales_clauses)}"
+    )
+
+    # Expense aggregate.
+    exp_clauses, exp_params = _date_scope_clauses(
+        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
+    )
+    exp_where = f"WHERE {' AND '.join(exp_clauses)}" if exp_clauses else ""
+    exp_sql = (
+        f"SELECT COALESCE(SUM(monto), 0) AS total_expenses FROM expenses {exp_where}"
+    )
+
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sales_sql, sales_params)
+            sales = cur.fetchone()
+            cur.execute(exp_sql, exp_params)
+            expenses = cur.fetchone()
+
+    total_revenue = Decimal(sales["total_revenue"])
+    total_expenses = Decimal(expenses["total_expenses"])
+    return {
+        "total_sales": int(sales["total_sales"]),
+        "total_products": Decimal(sales["total_products"]),
+        "total_revenue": total_revenue,
+        "total_expenses": total_expenses,
+        "net_income": total_revenue - total_expenses,
+    }
+
+
 def list_movements(
     sede: str | None = None,
     material_tipo: str | None = None,
