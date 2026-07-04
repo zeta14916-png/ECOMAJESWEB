@@ -117,7 +117,12 @@ def _render_sidebar(nav: list) -> None:
         st.divider()
 
         st.markdown(f"**Rol:** {session.current_role()}")
-        st.markdown(f"**Sede:** {session.current_sede()}")
+        scope_label = (
+            "Ámbito"
+            if session.current_role() == config.ROLE_GERENCIA
+            else "Sede"
+        )
+        st.markdown(f"**{scope_label}:** {session.current_sede()}")
         st.divider()
 
         for item in nav:
