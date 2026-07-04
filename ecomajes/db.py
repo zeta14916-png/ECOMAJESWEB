@@ -408,6 +408,46 @@ def resolve_categoria(provided: str | None, descripcion: str | None) -> str:
     return classify_categoria(descripcion)
 
 
+# Import modes control which rows get written on an import run.
+IMPORT_MODE_NEW = "new_only"  # only insert products that don't exist yet
+IMPORT_MODE_UPDATE = "update_only"  # only update products that already exist
+IMPORT_MODE_SYNC = "sync"  # insert new + update existing (recommended)
+IMPORT_MODES = [IMPORT_MODE_SYNC, IMPORT_MODE_NEW, IMPORT_MODE_UPDATE]
+IMPORT_MODE_LABELS = {
+    IMPORT_MODE_SYNC: "Sincronizar (recomendado)",
+    IMPORT_MODE_NEW: "Agregar solo productos nuevos",
+    IMPORT_MODE_UPDATE: "Actualizar productos existentes",
+}
+
+
+def get_products_import_snapshot(codigos: list[str]) -> dict[str, dict]:
+    """Read-only lookup of existing products (by codigo) for import preview.
+
+    Returns a dict keyed by codigo with the fields the importer can change
+    (descripcion/categoria/unidad/familia + precio/costo from `prices`), so the
+    preview can label each row Nuevo / Actualizar / Sin cambios before writing.
+    Never mutates anything.
+    """
+    codes = sorted({(c or "").strip() for c in codigos if (c or "").strip()})
+    if not codes:
+        return {}
+    with _get_conn() as conn:
+        with conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT p.codigo, p.descripcion, p.categoria, p.unidad,
+                       p.familia, pr.precio, pr.costo
+                FROM products p
+                LEFT JOIN prices pr ON pr.product_id = p.id
+                WHERE p.codigo = ANY(%s)
+                """,
+                (codes,),
+            )
+            return {row["codigo"]: dict(row) for row in cur.fetchall()}
+
+
 def _fullest(a: str | None, b: str | None) -> str:
     """Return the clearest/fullest of two descriptions (the longer non-empty)."""
     a = (a or "").strip()
@@ -494,6 +534,7 @@ def import_products(
     rows: list[dict],
     sede: str,
     material_tipo: str = TIPO_NUEVO,
+    mode: str = IMPORT_MODE_SYNC,
 ) -> dict:
     """Import/upsert catalog products from a parsed spreadsheet.
 
@@ -511,10 +552,18 @@ def import_products(
     and familia -> products.familia (kept when the import omits it). The Precios
     sheet UI is unchanged (it never reads/writes costo/familia).
 
-    Returns counts: {"inserted", "updated", "errors", "error_details"}.
+    `mode` controls which rows are written: IMPORT_MODE_SYNC inserts new and
+    updates existing; IMPORT_MODE_NEW only inserts products that don't exist yet
+    (existing códigos are skipped); IMPORT_MODE_UPDATE only updates existing
+    products (new códigos are skipped). Skipped-by-mode rows are counted
+    separately and never touch the database.
+
+    Returns counts: {"inserted", "updated", "skipped_mode", "errors",
+    "error_details"}.
     """
     inserted = 0
     updated = 0
+    skipped_mode = 0
     errors = 0
     error_details: list[str] = []
 
@@ -558,6 +607,10 @@ def import_products(
                             existing = cur.fetchone()
 
                         if existing is not None:
+                            if mode == IMPORT_MODE_NEW:
+                                skipped_mode += 1
+                                cur.execute("RELEASE SAVEPOINT sp_row")
+                                continue
                             pid, old_desc = existing
                             cur.execute(
                                 """
@@ -578,6 +631,10 @@ def import_products(
                             )
                             updated += 1
                         else:
+                            if mode == IMPORT_MODE_UPDATE:
+                                skipped_mode += 1
+                                cur.execute("RELEASE SAVEPOINT sp_row")
+                                continue
                             nombre = descripcion or codigo or "PRODUCTO"
                             cur.execute(
                                 "SELECT 1 FROM products "
@@ -641,6 +698,7 @@ def import_products(
     return {
         "inserted": inserted,
         "updated": updated,
+        "skipped_mode": skipped_mode,
         "errors": errors,
         "error_details": error_details,
     }

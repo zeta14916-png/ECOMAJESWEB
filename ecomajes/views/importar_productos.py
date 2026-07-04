@@ -125,20 +125,44 @@ def _dedupe(records: list[dict]) -> tuple[list[dict], int]:
     return deduped, skipped
 
 
-def _preview_rows(rows: list[dict]) -> list[dict]:
+def _row_status(row: dict, snapshot: dict[str, dict]) -> str:
+    """Label a row Nuevo / Actualizar / Sin cambios vs. the existing catalog."""
+    code = (row.get("codigo") or "").strip()
+    existing = snapshot.get(code) if code else None
+    if existing is None:
+        return "🟢 Nuevo"
+
+    new_desc = (row.get("descripcion") or "").strip()
+    new_unidad = (row.get("unidad") or "").strip() or "UNIDAD"
+    new_familia = (row.get("familia") or "").strip()
+    new_cat = db.resolve_categoria(row.get("categoria"), row.get("descripcion"))
+    new_precio = db._import_decimal(row.get("precio_venta"))
+    new_costo = db._import_decimal(row.get("costo"))
+
+    old_desc = (existing.get("descripcion") or "").strip()
+    changed = (
+        db._fullest(old_desc, new_desc) != old_desc
+        or new_cat != (existing.get("categoria") or "")
+        or new_unidad != (existing.get("unidad") or "")
+        or (new_familia and new_familia != (existing.get("familia") or ""))
+        or (new_precio is not None and new_precio != existing.get("precio"))
+        or (new_costo is not None and new_costo != existing.get("costo"))
+    )
+    return "🟡 Actualizar" if changed else "⚪ Sin cambios"
+
+
+def _preview_rows(rows: list[dict], snapshot: dict[str, dict]) -> list[dict]:
     """Shape deduped rows for the on-screen preview (with defaults applied)."""
     out = []
     for r in rows:
-        provided = (r.get("categoria") or "").strip()
-        resolved = db.resolve_categoria(provided, r.get("descripcion"))
-        auto = provided.upper() not in db.IMPORT_CATEGORIES
-        cat_display = f"{resolved} (auto)" if auto else resolved
+        resolved = db.resolve_categoria(r.get("categoria"), r.get("descripcion"))
         out.append(
             {
+                "Estado": _row_status(r, snapshot),
                 "Código": r.get("codigo") or "—",
                 "Descripción": r.get("descripcion") or "—",
                 "Familia": r.get("familia") or "—",
-                "Categoría": cat_display,
+                "Categoría": resolved,
                 "Unidad": r.get("unidad") or "UNIDAD",
                 "Precio de Venta": r.get("precio_venta") or "—",
                 "Costo Inicial": r.get("costo") or "—",
@@ -146,6 +170,57 @@ def _preview_rows(rows: list[dict]) -> list[dict]:
             }
         )
     return out
+
+
+@st.dialog("Confirmar importación")
+def _confirm_dialog(
+    deduped: list[dict],
+    total_rows: int,
+    skipped: int,
+    sede: str,
+    tipo: str,
+    modo: str,
+    usuario_rol: str,
+) -> None:
+    """Modal shown before writing: recap + Cancelar / Importar buttons."""
+    st.markdown("**Estás a punto de importar:**")
+    st.markdown(
+        f"- **Filas totales:** {total_rows}\n"
+        f"- **Productos únicos:** {len(deduped)}\n"
+        f"- **Productos duplicados:** {skipped}\n"
+        f"- **Destino:** {sede}\n"
+        f"- **Tipo de material:** {db.TIPO_LABELS[tipo]}\n"
+        f"- **Modo de importación:** {db.IMPORT_MODE_LABELS[modo]}"
+    )
+
+    b1, b2 = st.columns(2)
+    if b1.button("❌ Cancelar", use_container_width=True):
+        st.rerun()
+    if b2.button(
+        "✅ Importar Productos", type="primary", use_container_width=True
+    ):
+        start = time.perf_counter()
+        result = db.import_products(
+            deduped, sede=sede, material_tipo=tipo, mode=modo
+        )
+        elapsed = time.perf_counter() - start
+        db.log_audit(
+            db.AUDIT_IMPORT,
+            "Importar Productos",
+            detalle=(
+                f"Modo: {modo}, Nuevos: {result['inserted']}, "
+                f"Actualizados: {result['updated']}, "
+                f"Omitidos por modo: {result['skipped_mode']}, "
+                f"Duplicados omitidos: {skipped}, "
+                f"Errores: {result['errors']}"
+            ),
+            usuario_rol=usuario_rol,
+            sede=sede,
+        )
+        result["skipped_dup"] = skipped
+        result["elapsed"] = elapsed
+        st.session_state["import_result"] = result
+        st.rerun()
 
 
 def render(ctx: dict) -> None:
@@ -208,10 +283,29 @@ def render(ctx: dict) -> None:
         st.warning("El archivo no contiene filas de productos.")
         return
 
-    deduped, skipped = _dedupe(records)
+    # --- Resumen de la última importación ---------------------------------- #
+    if st.session_state.get("import_result"):
+        _render_summary(st.session_state.pop("import_result"))
+        st.divider()
 
-    # --- Confirmación ------------------------------------------------------ #
-    st.subheader("Confirmar importación")
+    deduped, skipped = _dedupe(records)
+    snapshot = db.get_products_import_snapshot(
+        [r.get("codigo") for r in deduped]
+    )
+
+    # --- Modo de importación ---------------------------------------------- #
+    modo = st.radio(
+        "Modo de importación",
+        db.IMPORT_MODES,
+        format_func=lambda m: db.IMPORT_MODE_LABELS[m],
+        help=(
+            "Agregar solo nuevos: inserta únicamente productos que no existen. "
+            "Actualizar existentes: solo modifica productos ya registrados. "
+            "Sincronizar: inserta nuevos y actualiza existentes."
+        ),
+    )
+
+    # --- Resumen + vista previa ------------------------------------------- #
     c1, c2, c3 = st.columns(3)
     c1.metric("Filas en el archivo", len(records))
     c2.metric("Productos únicos", len(deduped))
@@ -219,50 +313,37 @@ def render(ctx: dict) -> None:
 
     st.markdown("**Vista previa**")
     st.dataframe(
-        _preview_rows(deduped), use_container_width=True, hide_index=True
+        _preview_rows(deduped, snapshot),
+        use_container_width=True,
+        hide_index=True,
     )
 
-    b1, b2 = st.columns(2)
-    do_import = b1.button(
-        "✅ Importar Productos", type="primary", use_container_width=True
-    )
-    cancel = b2.button("❌ Cancelar", use_container_width=True)
+    if st.button(
+        "📥 Importar Productos", type="primary", use_container_width=True
+    ):
+        _confirm_dialog(
+            deduped,
+            len(records),
+            skipped,
+            sede_destino,
+            tipo_destino,
+            modo,
+            ctx["usuario_rol"],
+        )
 
-    if cancel:
-        st.info("Importación cancelada. No se realizaron cambios.")
-        return
-    if not do_import:
-        return
 
-    # --- Importación ------------------------------------------------------- #
-    start = time.perf_counter()
-    result = db.import_products(
-        deduped, sede=sede_destino, material_tipo=tipo_destino
-    )
-    elapsed = time.perf_counter() - start
-
-    db.log_audit(
-        db.AUDIT_IMPORT,
-        "Importar Productos",
-        detalle=(
-            f"Nuevos: {result['inserted']}, "
-            f"Actualizados: {result['updated']}, "
-            f"Duplicados omitidos: {skipped}, "
-            f"Errores: {result['errors']}"
-        ),
-        usuario_rol=ctx["usuario_rol"],
-        sede=sede_destino,
-    )
-
+def _render_summary(result: dict) -> None:
+    """Render the post-import summary from a stored import result."""
     st.success("Importación completada")
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
     m1.metric("Productos nuevos", result["inserted"])
     m2.metric("Productos actualizados", result["updated"])
-    m3.metric("Duplicados omitidos", skipped)
-    m4.metric("Errores encontrados", result["errors"])
-    m5.metric("Tiempo de importación", f"{elapsed:.1f} s")
+    m3.metric("Omitidos por modo", result.get("skipped_mode", 0))
+    m4.metric("Duplicados omitidos", result.get("skipped_dup", 0))
+    m5.metric("Errores encontrados", result["errors"])
+    m6.metric("Tiempo de importación", f"{result.get('elapsed', 0):.1f} s")
 
-    if result["error_details"]:
+    if result.get("error_details"):
         with st.expander("Detalle de errores"):
             for line in result["error_details"]:
                 st.write(f"• {line}")
