@@ -26,12 +26,23 @@ def is_authenticated() -> bool:
     return bool(st.session_state.get(KEY_AUTHENTICATED))
 
 
-def login(role: str, sede: str) -> None:
-    """Store the authenticated session for a role + sede."""
+def authenticate(role: str) -> None:
+    """Mark a role as authenticated. The scope (sede) is chosen afterwards."""
     st.session_state[KEY_ROLE] = role
-    st.session_state[KEY_SEDE] = sede
+    st.session_state[KEY_SEDE] = None
     st.session_state[KEY_AUTHENTICATED] = True
     st.session_state[KEY_ACTIVE_PAGE] = None
+
+
+def set_scope(sede: str) -> None:
+    """Store the location/scope selected after login."""
+    st.session_state[KEY_SEDE] = sede
+    st.session_state[KEY_ACTIVE_PAGE] = None
+
+
+def needs_scope() -> bool:
+    """True when the user is authenticated but has not chosen a scope yet."""
+    return is_authenticated() and st.session_state.get(KEY_SEDE) is None
 
 
 def logout() -> None:

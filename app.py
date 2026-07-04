@@ -16,10 +16,12 @@ st.set_page_config(page_title="ECOMAJES ERP", page_icon="🔩", layout="wide")
 def main() -> None:
     session.init_state()
 
-    if session.is_authenticated():
-        navigation.render_app()
-    else:
+    if not session.is_authenticated():
         login.render_login()
+    elif session.needs_scope():
+        login.render_scope_selection()
+    else:
+        navigation.render_app()
 
 
 if __name__ == "__main__":
