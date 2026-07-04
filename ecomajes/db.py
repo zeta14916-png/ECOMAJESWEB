@@ -1482,3 +1482,151 @@ def set_comment_status(comment_id: int, estado: str) -> None:
         except Exception:
             conn.rollback()
             raise
+
+
+# --------------------------------------------------------------------------- #
+# Solicitudes de reposición (replenishment / purchase requests)
+# --------------------------------------------------------------------------- #
+
+# Request status keys (stored on replenishment_requests.estado, CHECK-constrained).
+REPO_PENDIENTE = "pendiente"
+REPO_EN_PROCESO = "en_proceso"
+REPO_COMPRADO = "comprado"
+REPO_RECIBIDO = "recibido"
+REPO_STATUS_LABELS = {
+    REPO_PENDIENTE: "Pendiente",
+    REPO_EN_PROCESO: "En proceso",
+    REPO_COMPRADO: "Comprado",
+    REPO_RECIBIDO: "Recibido",
+}
+# An "open" request is anything not yet fully received; used to avoid duplicates.
+_REPO_OPEN_STATES = (REPO_PENDIENTE, REPO_EN_PROCESO, REPO_COMPRADO)
+
+
+def add_replenishment_request(
+    *,
+    product_id: int | None,
+    codigo: str | None,
+    descripcion: str,
+    sede: str,
+    material_tipo: str | None,
+    stock_actual,
+    stock_minimo,
+    cantidad_sugerida,
+    solicitado_por: str,
+) -> bool:
+    """Create a replenishment (purchase) request for a product.
+
+    Returns True when a new request is created, or False when the product
+    already has an OPEN request (not yet 'recibido') — this prevents duplicates
+    when the same alert is clicked repeatedly. This NEVER changes stock; it only
+    records a purchase request.
+    """
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                if product_id is not None:
+                    cur.execute(
+                        "SELECT 1 FROM replenishment_requests "
+                        "WHERE product_id = %s AND estado = ANY(%s) LIMIT 1",
+                        (product_id, list(_REPO_OPEN_STATES)),
+                    )
+                    if cur.fetchone():
+                        conn.rollback()
+                        return False
+                cur.execute(
+                    """
+                    INSERT INTO replenishment_requests
+                        (product_id, codigo, descripcion, sede, material_tipo,
+                         stock_actual, stock_minimo, cantidad_sugerida,
+                         solicitado_por, estado)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        product_id,
+                        codigo,
+                        descripcion,
+                        sede,
+                        material_tipo,
+                        stock_actual,
+                        stock_minimo,
+                        cantidad_sugerida,
+                        solicitado_por,
+                        REPO_PENDIENTE,
+                    ),
+                )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_replenishment_requests(
+    estado: str | None = None,
+    limit: int = 500,
+) -> list[dict]:
+    """Return replenishment requests (newest first), optional status filter."""
+    clauses: list[str] = []
+    params: list = []
+    if estado:
+        clauses.append("estado = %s")
+        params.append(estado)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, product_id, codigo, descripcion, sede, material_tipo, "
+        "stock_actual, stock_minimo, cantidad_sugerida, solicitado_por, "
+        "estado, created_at "
+        f"FROM replenishment_requests {where} "
+        "ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    params.append(limit)
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def set_replenishment_status(request_id: int, estado: str) -> None:
+    """Change a request's status (GERENCIA only, enforced by the view)."""
+    if estado not in REPO_STATUS_LABELS:
+        raise ValueError(f"Estado de solicitud inválido: {estado}")
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE replenishment_requests SET estado = %s WHERE id = %s",
+                    (estado, request_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def open_replenishment_product_ids(
+    sede: str | None = None,
+    material_tipo: str | None = None,
+) -> set:
+    """product_ids that currently have an OPEN (not 'recibido') request.
+
+    Used by the ALERTAS view to show which products were already requested so it
+    does not offer the button twice.
+    """
+    clauses = ["estado = ANY(%s)", "product_id IS NOT NULL"]
+    params: list = [list(_REPO_OPEN_STATES)]
+    if sede is not None:
+        clauses.append("sede = %s")
+        params.append(sede)
+    if material_tipo is not None:
+        clauses.append("material_tipo = %s")
+        params.append(material_tipo)
+    where = " AND ".join(clauses)
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT product_id FROM replenishment_requests "
+                f"WHERE {where}",
+                params,
+            )
+            return {r[0] for r in cur.fetchall()}

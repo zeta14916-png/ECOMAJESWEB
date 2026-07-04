@@ -121,6 +121,7 @@ _GERENCIA_NAV: list = [
     Page("ger_precios", "Precios"),
     Page("ger_recursos_humanos", "Recursos Humanos"),
     Page("ger_gestion_inventario", "Gestión de Inventario"),
+    Page("ger_solicitudes_reposicion", "Solicitudes de Reposición"),
     Page("ger_reportes", "Reportes"),
     Page("ger_balance_financiero", "Balance Financiero"),
     Page("ger_configuracion", "Configuración"),

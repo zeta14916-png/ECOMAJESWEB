@@ -18,6 +18,7 @@ from ecomajes.views import (
     inventario,
     movimientos,
     precios,
+    solicitudes_reposicion,
     productos,
     recursos_humanos,
     reporte_ventas,
@@ -96,6 +97,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — replenishment (purchase) requests from ALERTAS.
+    "ger_solicitudes_reposicion": {
+        "view": "solicitudes_reposicion",
+        "material_tipo": None,
+        "editable": True,
+    },
     # GERENCIA — financial balance + dashboard.
     "ger_balance_financiero": {
         "view": "balance",
@@ -151,6 +158,7 @@ _VIEWS = {
     "movimientos": movimientos.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,
+    "solicitudes_reposicion": solicitudes_reposicion.render,
     "balance": balance.render,
     "productos": productos.render,
     "recursos_humanos": recursos_humanos.render,
