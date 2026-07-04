@@ -30,14 +30,15 @@ from ecomajes.views import (
 ROUTES = {
     # OPERARIOS — read-only inventory for the chosen sede.
     "op_inventario": {"view": "inventario", "material_tipo": None, "editable": False},
-    # ÁREA ADMINISTRATIVA — Material Nuevo.
-    "adm_mn_inventario": {
-        "view": "inventario",
+    # ÁREA ADMINISTRATIVA — Material Nuevo. (Historial has no dedicated view yet
+    # and intentionally falls back to the shared placeholder.)
+    "adm_mn_registro_movimiento": {
+        "view": "movimientos",
         "material_tipo": db.TIPO_NUEVO,
         "editable": True,
     },
-    "adm_mn_entrada_movimientos": {
-        "view": "movimientos",
+    "adm_mn_inventario": {
+        "view": "inventario",
         "material_tipo": db.TIPO_NUEVO,
         "editable": True,
     },
@@ -46,20 +47,29 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    "adm_mn_gestion_inventario": {
+        "view": "productos",
+        "material_tipo": db.TIPO_NUEVO,
+        "editable": True,
+    },
     # ÁREA ADMINISTRATIVA — Material Segundo Uso.
+    "adm_msu_registro_movimiento": {
+        "view": "movimientos",
+        "material_tipo": db.TIPO_SEGUNDO_USO,
+        "editable": True,
+    },
     "adm_msu_inventario": {
         "view": "inventario",
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": True,
     },
-    "adm_msu_registrar_producto": {
-        "view": "inventario",
-        "material_tipo": db.TIPO_SEGUNDO_USO,
+    "adm_msu_reporte_ventas": {
+        "view": "reporte_ventas",
+        "material_tipo": None,
         "editable": True,
-        "focus_add": True,
     },
-    "adm_msu_registrar_movimientos": {
-        "view": "movimientos",
+    "adm_msu_gestion_inventario": {
+        "view": "productos",
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": True,
     },
