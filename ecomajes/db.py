@@ -705,6 +705,256 @@ def import_products(
 
 
 # --------------------------------------------------------------------------- #
+# Importar Precios — update pricing fields only, match by codigo
+# --------------------------------------------------------------------------- #
+# Canonical price fields the importer can write (raw dict keys on each row) and
+# the `prices` column each maps to. Never creates products.
+PRICE_IMPORT_FIELDS = (
+    "precio",
+    "costo",
+    "peso",
+    "p1",
+    "p2",
+    "p3",
+    "precio_minimo",
+    "venta_oficial",
+    "venta_3m",
+    "venta_metro",
+)
+
+
+def import_prices(rows: list[dict]) -> dict:
+    """Update pricing fields for existing products, matched by codigo.
+
+    Never creates products. Each row must contain `codigo` plus any subset of
+    PRICE_IMPORT_FIELDS (raw spreadsheet strings; parsed with _import_decimal).
+    Only supplied fields are written (COALESCE keeps curated values otherwise,
+    incl. precio_sugerido/observaciones which this importer never touches).
+    Códigos with no matching product are collected in `not_found` (nothing is
+    written for them). Per-row SAVEPOINT so one bad row can't abort the batch.
+    Returns {"updated", "not_found", "errors", "error_details"}.
+    """
+    updated = 0
+    errors = 0
+    not_found: list[str] = []
+    error_details: list[str] = []
+
+    with _get_conn() as conn:
+        try:
+            with conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                for row in rows:
+                    codigo = (str(row.get("codigo") or "")).strip() or None
+                    if not codigo:
+                        errors += 1
+                        error_details.append("(fila sin código)")
+                        continue
+                    values = {
+                        f: _import_decimal(row.get(f))
+                        for f in PRICE_IMPORT_FIELDS
+                    }
+                    if all(v is None for v in values.values()):
+                        # Nothing to write for this row; skip silently.
+                        continue
+                    cur.execute("SAVEPOINT sp_row")
+                    try:
+                        cur.execute(
+                            "SELECT id, codigo, descripcion, categoria, unidad "
+                            "FROM products WHERE codigo = %s",
+                            (codigo,),
+                        )
+                        prod = cur.fetchone()
+                        if prod is None:
+                            cur.execute("RELEASE SAVEPOINT sp_row")
+                            not_found.append(codigo)
+                            continue
+                        cur.execute(
+                            """
+                            INSERT INTO prices
+                                (product_id, codigo, descripcion, categoria,
+                                 unidad, precio, costo, peso, p1, p2, p3,
+                                 precio_minimo, venta_oficial, venta_3m,
+                                 venta_metro)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                    %s, %s, %s, %s)
+                            ON CONFLICT (product_id) DO UPDATE SET
+                                precio = COALESCE(
+                                    EXCLUDED.precio, prices.precio),
+                                costo = COALESCE(
+                                    EXCLUDED.costo, prices.costo),
+                                peso = COALESCE(
+                                    EXCLUDED.peso, prices.peso),
+                                p1 = COALESCE(EXCLUDED.p1, prices.p1),
+                                p2 = COALESCE(EXCLUDED.p2, prices.p2),
+                                p3 = COALESCE(EXCLUDED.p3, prices.p3),
+                                precio_minimo = COALESCE(
+                                    EXCLUDED.precio_minimo,
+                                    prices.precio_minimo),
+                                venta_oficial = COALESCE(
+                                    EXCLUDED.venta_oficial,
+                                    prices.venta_oficial),
+                                venta_3m = COALESCE(
+                                    EXCLUDED.venta_3m, prices.venta_3m),
+                                venta_metro = COALESCE(
+                                    EXCLUDED.venta_metro, prices.venta_metro),
+                                codigo = COALESCE(
+                                    prices.codigo, EXCLUDED.codigo),
+                                descripcion = COALESCE(
+                                    prices.descripcion, EXCLUDED.descripcion),
+                                categoria = COALESCE(
+                                    prices.categoria, EXCLUDED.categoria),
+                                unidad = COALESCE(
+                                    prices.unidad, EXCLUDED.unidad),
+                                updated_at = now()
+                            """,
+                            (
+                                prod["id"],
+                                prod["codigo"],
+                                prod["descripcion"],
+                                prod["categoria"],
+                                prod["unidad"],
+                                values["precio"],
+                                values["costo"],
+                                values["peso"],
+                                values["p1"],
+                                values["p2"],
+                                values["p3"],
+                                values["precio_minimo"],
+                                values["venta_oficial"],
+                                values["venta_3m"],
+                                values["venta_metro"],
+                            ),
+                        )
+                        cur.execute("RELEASE SAVEPOINT sp_row")
+                        updated += 1
+                    except Exception as exc:  # noqa: BLE001
+                        cur.execute("ROLLBACK TO SAVEPOINT sp_row")
+                        errors += 1
+                        error_details.append(f"{codigo}: {exc}")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {
+        "updated": updated,
+        "not_found": not_found,
+        "errors": errors,
+        "error_details": error_details,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Importar Stock — update stock quantities only, match by codigo within a sede
+# --------------------------------------------------------------------------- #
+def get_stock_import_snapshot(codigos: list[str], sede: str) -> dict[str, dict]:
+    """Read-only lookup of products (by codigo) within a sede for stock preview.
+
+    Returns {codigo: {id, descripcion, stock, stock_minimo}} for products that
+    live in `sede`. Códigos absent or in another sede simply won't appear, so
+    the preview can flag them as no encontrados. Never mutates anything.
+    """
+    codes = sorted({(c or "").strip() for c in codigos if (c or "").strip()})
+    if not codes:
+        return {}
+    with _get_conn() as conn:
+        with conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT codigo, descripcion, stock, stock_minimo
+                FROM products
+                WHERE sede = %s AND codigo = ANY(%s)
+                """,
+                (sede, codes),
+            )
+            return {row["codigo"]: dict(row) for row in cur.fetchall()}
+
+
+def import_stock(rows: list[dict], sede: str) -> dict:
+    """Update stock (and stock_minimo when supplied) for products in a sede.
+
+    Matches by codigo scoped to `sede` (codigo is globally unique, so a codigo
+    living in another sede is reported as not found here). Never creates
+    products, never touches prices or descriptions. Each row must contain
+    `codigo` plus `stock` and/or `stock_minimo` (raw strings; parsed with
+    _import_decimal). Per-row SAVEPOINT so one bad row can't abort the batch.
+    Returns {"updated", "not_found", "errors", "error_details"}.
+    """
+    updated = 0
+    errors = 0
+    not_found: list[str] = []
+    error_details: list[str] = []
+
+    with _get_conn() as conn:
+        try:
+            with conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                for row in rows:
+                    codigo = (str(row.get("codigo") or "")).strip() or None
+                    if not codigo:
+                        errors += 1
+                        error_details.append("(fila sin código)")
+                        continue
+                    stock = _import_decimal(row.get("stock"))
+                    stock_min = _import_decimal(row.get("stock_minimo"))
+                    if stock is None and stock_min is None:
+                        continue
+                    if (stock is not None and stock < 0) or (
+                        stock_min is not None and stock_min < 0
+                    ):
+                        errors += 1
+                        error_details.append(f"{codigo}: valor negativo")
+                        continue
+                    cur.execute("SAVEPOINT sp_row")
+                    try:
+                        cur.execute(
+                            "SELECT id FROM products "
+                            "WHERE sede = %s AND codigo = %s",
+                            (sede, codigo),
+                        )
+                        prod = cur.fetchone()
+                        if prod is None:
+                            cur.execute("RELEASE SAVEPOINT sp_row")
+                            not_found.append(codigo)
+                            continue
+                        sets: list[str] = []
+                        params: list = []
+                        if stock is not None:
+                            sets.append("stock = %s")
+                            params.append(stock)
+                        if stock_min is not None:
+                            sets.append("stock_minimo = %s")
+                            params.append(stock_min)
+                        params.append(prod["id"])
+                        cur.execute(
+                            f"UPDATE products SET {', '.join(sets)} "
+                            "WHERE id = %s",
+                            params,
+                        )
+                        cur.execute("RELEASE SAVEPOINT sp_row")
+                        updated += 1
+                    except Exception as exc:  # noqa: BLE001
+                        cur.execute("ROLLBACK TO SAVEPOINT sp_row")
+                        errors += 1
+                        error_details.append(f"{codigo}: {exc}")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {
+        "updated": updated,
+        "not_found": not_found,
+        "errors": errors,
+        "error_details": error_details,
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Product/price backups (import safety net)
 # --------------------------------------------------------------------------- #
 def create_products_backup(import_mode: str) -> dict:
@@ -753,10 +1003,12 @@ def get_last_backup() -> dict | None:
 def restore_products_backup(backup_id: int | None = None) -> dict:
     """Restore products + prices to a stored backup (latest if id is None).
 
-    Reverts exactly what an import can change without touching stock:
+    Reverts every change an import can make, so ALL three importers (productos /
+    precios / stock) are reversible and "todos los cambios posteriores al
+    respaldo se pierden":
     - products created after the backup are deleted (movements/prices cascade);
     - existing products' catalog fields (descripcion/categoria/unidad/familia)
-      are restored to the snapshot (stock is never modified);
+      AND their stock + stock_minimo are restored to the snapshot;
     - the prices table is rebuilt from the snapshot.
     Runs in a single transaction. Raises ValueError if no backup exists.
     Returns {"product_count", "backup_id"}.
@@ -791,17 +1043,20 @@ def restore_products_backup(backup_id: int | None = None) -> dict:
                     " FROM jsonb_array_elements(%s) e)",
                     (prods,),
                 )
-                # 2. Revert catalog fields on surviving products (not stock).
+                # 2. Revert catalog fields + stock on surviving products.
                 cur.execute(
                     """
                     UPDATE products p SET
                         descripcion = s.descripcion,
                         categoria = s.categoria,
                         unidad = s.unidad,
-                        familia = s.familia
+                        familia = s.familia,
+                        stock = s.stock,
+                        stock_minimo = s.stock_minimo
                     FROM jsonb_to_recordset(%s) AS s(
                         id int, descripcion text, categoria text,
-                        unidad text, familia text
+                        unidad text, familia text,
+                        stock numeric, stock_minimo numeric
                     )
                     WHERE p.id = s.id
                     """,

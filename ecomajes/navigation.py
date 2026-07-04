@@ -15,7 +15,9 @@ from ecomajes.views import (
     balance,
     comentarios,
     gestion_inventario,
+    importar_precios,
     importar_productos,
+    importar_stock,
     inventario,
     movimientos,
     precios,
@@ -122,6 +124,18 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — price importer (multi-sheet Excel, match by codigo).
+    "ger_importar_precios": {
+        "view": "importar_precios",
+        "material_tipo": None,
+        "editable": True,
+    },
+    # GERENCIA — stock importer (per sede, match by codigo).
+    "ger_importar_stock": {
+        "view": "importar_stock",
+        "material_tipo": None,
+        "editable": True,
+    },
     # GERENCIA — Recursos Humanos (employees + payroll).
     "ger_recursos_humanos": {
         "view": "recursos_humanos",
@@ -163,6 +177,8 @@ _VIEWS = {
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
     "importar_productos": importar_productos.render,
+    "importar_precios": importar_precios.render,
+    "importar_stock": importar_stock.render,
     "movimientos": movimientos.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,

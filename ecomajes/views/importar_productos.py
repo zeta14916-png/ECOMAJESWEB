@@ -23,6 +23,7 @@ import pandas as pd
 import streamlit as st
 
 from ecomajes import config, db
+from ecomajes.views import _import_common
 
 # Spreadsheet header -> canonical field. Keys are lower-cased + stripped.
 _COLUMN_ALIASES = {
@@ -246,77 +247,11 @@ def _confirm_dialog(
         st.rerun()
 
 
-@st.dialog("Restaurar inventario")
-def _restore_dialog(backup: dict, usuario_rol: str) -> None:
-    """Confirmation modal for restoring the last backup (GERENCIA)."""
-    st.warning(
-        "Estás a punto de restaurar el inventario anterior. Se perderán "
-        "todos los cambios posteriores a ese respaldo."
-    )
-    when = backup["created_at"].strftime("%d/%m/%Y %H:%M")
-    st.caption(
-        f"Respaldo del {when} · {backup['product_count']} productos"
-    )
-
-    b1, b2 = st.columns(2)
-    if b1.button("❌ Cancelar", use_container_width=True):
-        st.rerun()
-    if b2.button("♻️ Restaurar", type="primary", use_container_width=True):
-        db.restore_products_backup(backup["id"])
-        db.log_audit(
-            db.AUDIT_IMPORT,
-            "Importar Productos",
-            detalle=(
-                f"Inventario restaurado desde respaldo #{backup['id']} "
-                f"({backup['product_count']} productos)"
-            ),
-            usuario_rol=usuario_rol,
-        )
-        st.session_state["restore_done"] = True
-        st.rerun()
-
-
-def _render_backup_panel(ctx: dict) -> None:
-    """GERENCIA-only backup status + Restaurar último respaldo button."""
-    if ctx.get("usuario_rol") != config.ROLE_GERENCIA:
-        return
-
-    if st.session_state.pop("restore_done", False):
-        st.success("Inventario restaurado correctamente.")
-
-    last = db.get_last_backup()
-    with st.container(border=True):
-        st.markdown("**🛟 Respaldo del inventario**")
-        if last:
-            when = last["created_at"].strftime("%d/%m/%Y %H:%M")
-            modo = db.IMPORT_MODE_LABELS.get(
-                last["import_mode"], last["import_mode"]
-            )
-            st.caption(
-                f"Último respaldo: {when} · Modo: {modo} · "
-                f"Productos: {last['product_count']}"
-            )
-        else:
-            st.caption(
-                "Aún no hay respaldos. Se crea uno automáticamente antes de "
-                "cada importación."
-            )
-        if st.button(
-            "♻️ Restaurar último respaldo",
-            disabled=last is None,
-            help=(
-                "Devuelve el catálogo de productos y precios al estado del "
-                "último respaldo."
-            ),
-        ):
-            _restore_dialog(last, ctx["usuario_rol"])
-
-
 def render(ctx: dict) -> None:
     st.header(ctx["title"])
     st.caption(ctx["breadcrumb"])
 
-    _render_backup_panel(ctx)
+    _import_common.render_backup_panel(ctx, "Importar Productos")
 
     st.markdown(
         "Sube un archivo **Excel** con tus productos. El sistema limpia los "
