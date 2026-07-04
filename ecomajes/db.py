@@ -373,6 +373,77 @@ def _fullest(a: str | None, b: str | None) -> str:
     return a if len(a) >= len(b) else b
 
 
+def _import_decimal(value) -> Decimal | None:
+    """Parse a spreadsheet money/number cell to Decimal, or None when empty.
+
+    Tolerates currency prefixes ("S/") and thousands separators.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = (
+        text.replace("S/", "")
+        .replace("s/", "")
+        .replace(" ", "")
+        .replace(",", "")
+    )
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _upsert_import_price(
+    cur,
+    product_id: int,
+    codigo: str | None,
+    descripcion: str | None,
+    categoria: str | None,
+    unidad: str | None,
+    precio: Decimal | None,
+    costo: Decimal | None,
+) -> None:
+    """Upsert the pricing/cost row for an imported product.
+
+    Only fills precio/precio_sugerido/costo when the import supplies a value
+    (COALESCE keeps any existing manually-edited value otherwise), and seeds the
+    display columns (codigo/descripcion/categoria/unidad) without overwriting
+    values already curated in the Precios sheet. Does not touch p1/p2/p3,
+    precio_minimo, peso or observaciones.
+    """
+    cur.execute(
+        """
+        INSERT INTO prices
+            (product_id, codigo, descripcion, categoria, unidad,
+             precio, precio_sugerido, costo)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (product_id) DO UPDATE SET
+            precio = COALESCE(EXCLUDED.precio, prices.precio),
+            precio_sugerido = COALESCE(
+                EXCLUDED.precio_sugerido, prices.precio_sugerido
+            ),
+            costo = COALESCE(EXCLUDED.costo, prices.costo),
+            codigo = COALESCE(prices.codigo, EXCLUDED.codigo),
+            descripcion = COALESCE(prices.descripcion, EXCLUDED.descripcion),
+            categoria = COALESCE(prices.categoria, EXCLUDED.categoria),
+            unidad = COALESCE(prices.unidad, EXCLUDED.unidad),
+            updated_at = now()
+        """,
+        (
+            product_id,
+            codigo,
+            descripcion,
+            categoria,
+            unidad,
+            precio,
+            precio,  # seed precio_sugerido from the sale price
+            costo,
+        ),
+    )
+
+
 def import_products(
     rows: list[dict],
     sede: str,
@@ -380,14 +451,19 @@ def import_products(
 ) -> dict:
     """Import/upsert catalog products from a parsed spreadsheet.
 
-    Each row may contain: codigo, descripcion, unidad, categoria, stock. Rows
-    should already be de-duplicated by codigo (the caller collapses repeats and
-    reports how many were skipped). Matching is by codigo (globally unique): an
-    existing codigo updates that product keeping the fullest description;
-    otherwise a new product is inserted into (sede, material_tipo). Rows without
-    a codigo are matched by nombre (= descripcion) within the sede/material_tipo.
-    Missing unidad defaults to "UNIDAD", missing categoria is auto-classified,
-    missing stock defaults to 0. Never touches the prices table.
+    Each row may contain: codigo, descripcion, unidad, categoria, stock,
+    precio_venta, costo, familia. Rows should already be de-duplicated by codigo
+    (the caller collapses repeats and reports how many were skipped). Matching is
+    by codigo (globally unique): an existing codigo updates that product keeping
+    the fullest description; otherwise a new product is inserted into
+    (sede, material_tipo). Rows without a codigo are matched by nombre
+    (= descripcion) within the sede/material_tipo. Missing unidad defaults to
+    "UNIDAD", missing categoria is auto-classified, missing stock defaults to 0.
+
+    Additionally: precio_venta -> prices.precio (+ precio_sugerido), costo ->
+    prices.costo (both via `_upsert_import_price`, non-destructive when absent),
+    and familia -> products.familia (kept when the import omits it). The Precios
+    sheet UI is unchanged (it never reads/writes costo/familia).
 
     Returns counts: {"inserted", "updated", "errors", "error_details"}.
     """
@@ -413,6 +489,9 @@ def import_products(
                         stock = Decimal(str(row.get("stock") or 0))
                     except (InvalidOperation, ValueError, TypeError):
                         stock = Decimal("0")
+                    precio = _import_decimal(row.get("precio_venta"))
+                    costo = _import_decimal(row.get("costo"))
+                    familia = (str(row.get("familia") or "")).strip() or None
 
                     try:
                         cur.execute("SAVEPOINT sp_row")
@@ -440,13 +519,15 @@ def import_products(
                                 UPDATE products SET
                                     descripcion = %s,
                                     categoria = %s,
-                                    unidad = %s
+                                    unidad = %s,
+                                    familia = COALESCE(%s, familia)
                                 WHERE id = %s
                                 """,
                                 (
                                     _fullest(old_desc, descripcion),
                                     categoria,
                                     unidad,
+                                    familia,
                                     pid,
                                 ),
                             )
@@ -471,8 +552,9 @@ def import_products(
                                 INSERT INTO products
                                     (sede, material_tipo, nombre, codigo,
                                      descripcion, categoria, unidad, stock,
-                                     activo)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                                     familia, activo)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                                RETURNING id
                                 """,
                                 (
                                     sede,
@@ -483,9 +565,24 @@ def import_products(
                                     categoria,
                                     unidad,
                                     stock,
+                                    familia,
                                 ),
                             )
+                            pid = cur.fetchone()[0]
                             inserted += 1
+
+                        # Store pricing/cost data only when supplied.
+                        if precio is not None or costo is not None:
+                            _upsert_import_price(
+                                cur,
+                                pid,
+                                codigo,
+                                descripcion,
+                                categoria,
+                                unidad,
+                                precio,
+                                costo,
+                            )
                         cur.execute("RELEASE SAVEPOINT sp_row")
                     except Exception as exc:  # noqa: BLE001
                         cur.execute("ROLLBACK TO SAVEPOINT sp_row")

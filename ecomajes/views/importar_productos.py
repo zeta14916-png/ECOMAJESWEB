@@ -10,8 +10,9 @@ Rules:
 - If a código already exists it updates the product; otherwise it is created.
 - Missing categoría is auto-classified from the description; missing unidad
   defaults to "UNIDAD"; stock defaults to 0.
-
-This module only writes products; it never touches the prices module/table.
+- PRECIO DE VENTA SOLES -> prices.precio (+ precio_sugerido), COSTO INICIAL
+  SOLES -> prices.costo, FAMILIA -> products.familia. These are stored but never
+  surfaced in the worker Inventario screen or the Precios sheet UI.
 """
 
 from __future__ import annotations
@@ -81,6 +82,9 @@ def _parse(file) -> list[dict]:
             "descripcion": _cell(r.get("descripcion")),
             "unidad": _cell(r.get("unidad")),
             "categoria": _cell(r.get("categoria")),
+            "precio_venta": _cell(r.get("precio_venta")),
+            "costo": _cell(r.get("costo")),
+            "familia": _cell(r.get("familia")),
         }
         if row["codigo"] or row["descripcion"]:
             records.append(row)
@@ -108,7 +112,7 @@ def _dedupe(records: list[dict]) -> tuple[list[dict], int]:
             existing["descripcion"] = db._fullest(
                 existing["descripcion"], r["descripcion"]
             )
-            for f in ("unidad", "categoria"):
+            for f in ("unidad", "categoria", "precio_venta", "costo", "familia"):
                 if not existing.get(f) and r.get(f):
                     existing[f] = r[f]
         else:
@@ -156,7 +160,7 @@ def render(ctx: dict) -> None:
             "- **UNIDAD** (si falta, se usa «UNIDAD»)\n"
             "- **CATEGORIA** (si falta, se clasifica desde la descripción)\n"
             "- PRECIO DE VENTA SOLES, COSTO INICIAL SOLES, FAMILIA "
-            "(se leen pero no se importan aquí)\n\n"
+            "(se guardan para precios/costos y reportes)\n\n"
             "El stock inicial se registra en **0**. Usa Registro de "
             "Movimiento para cargar existencias."
         )
