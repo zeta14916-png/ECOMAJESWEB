@@ -1,3 +1,4 @@
 - [products.codigo identity](products-codigo-identity.md) — codigo is globally partial-unique (the upsert key); watch the separate (sede,material_tipo,nombre) unique constraint.
 - [st.rerun() inside try/except](streamlit-rerun-in-try.md) — st.rerun raises an exception; a broad except swallows it. Rerun AFTER the try, not inside.
 - [Import backup/restore reverts stock](import-backup-restore.md) — restore now rewinds stock too (for Importar Stock reversibility) but not the movement ledger; use it as immediate post-import recovery only.
+- [precio_sugerido must track precio](precio-sugerido-sync.md) — Precios save mirrors precio_sugerido=precio (movimientos prefers it); prices live ONLY in Precios (GERENCIA), no importer writes prices/cost.

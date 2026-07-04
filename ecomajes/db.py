@@ -423,10 +423,10 @@ IMPORT_MODE_LABELS = {
 def get_products_import_snapshot(codigos: list[str]) -> dict[str, dict]:
     """Read-only lookup of existing products (by codigo) for import preview.
 
-    Returns a dict keyed by codigo with the fields the importer can change
-    (descripcion/categoria/unidad/familia + precio/costo from `prices`), so the
-    preview can label each row Nuevo / Actualizar / Sin cambios before writing.
-    Never mutates anything.
+    Returns a dict keyed by codigo with the catalog fields the importer can
+    change (descripcion/categoria/unidad/familia), so the preview can label each
+    row Nuevo / Actualizar / Sin cambios before writing. Prices are never part of
+    the product import, so no price columns are read. Never mutates anything.
     """
     codes = sorted({(c or "").strip() for c in codigos if (c or "").strip()})
     if not codes:
@@ -438,9 +438,8 @@ def get_products_import_snapshot(codigos: list[str]) -> dict[str, dict]:
             cur.execute(
                 """
                 SELECT p.codigo, p.descripcion, p.categoria, p.unidad,
-                       p.familia, pr.precio, pr.costo
+                       p.familia
                 FROM products p
-                LEFT JOIN prices pr ON pr.product_id = p.id
                 WHERE p.codigo = ANY(%s)
                 """,
                 (codes,),
@@ -481,55 +480,6 @@ def _import_decimal(value) -> Decimal | None:
         return None
 
 
-def _upsert_import_price(
-    cur,
-    product_id: int,
-    codigo: str | None,
-    descripcion: str | None,
-    categoria: str | None,
-    unidad: str | None,
-    precio: Decimal | None,
-    costo: Decimal | None,
-) -> None:
-    """Upsert the pricing/cost row for an imported product.
-
-    Only fills precio/precio_sugerido/costo when the import supplies a value
-    (COALESCE keeps any existing manually-edited value otherwise), and seeds the
-    display columns (codigo/descripcion/categoria/unidad) without overwriting
-    values already curated in the Precios sheet. Does not touch p1/p2/p3,
-    precio_minimo, peso or observaciones.
-    """
-    cur.execute(
-        """
-        INSERT INTO prices
-            (product_id, codigo, descripcion, categoria, unidad,
-             precio, precio_sugerido, costo)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (product_id) DO UPDATE SET
-            precio = COALESCE(EXCLUDED.precio, prices.precio),
-            precio_sugerido = COALESCE(
-                EXCLUDED.precio_sugerido, prices.precio_sugerido
-            ),
-            costo = COALESCE(EXCLUDED.costo, prices.costo),
-            codigo = COALESCE(prices.codigo, EXCLUDED.codigo),
-            descripcion = COALESCE(prices.descripcion, EXCLUDED.descripcion),
-            categoria = COALESCE(prices.categoria, EXCLUDED.categoria),
-            unidad = COALESCE(prices.unidad, EXCLUDED.unidad),
-            updated_at = now()
-        """,
-        (
-            product_id,
-            codigo,
-            descripcion,
-            categoria,
-            unidad,
-            precio,
-            precio,  # seed precio_sugerido from the sale price
-            costo,
-        ),
-    )
-
-
 def import_products(
     rows: list[dict],
     sede: str,
@@ -539,18 +489,17 @@ def import_products(
     """Import/upsert catalog products from a parsed spreadsheet.
 
     Each row may contain: codigo, descripcion, unidad, categoria, stock,
-    precio_venta, costo, familia. Rows should already be de-duplicated by codigo
-    (the caller collapses repeats and reports how many were skipped). Matching is
-    by codigo (globally unique): an existing codigo updates that product keeping
-    the fullest description; otherwise a new product is inserted into
-    (sede, material_tipo). Rows without a codigo are matched by nombre
-    (= descripcion) within the sede/material_tipo. Missing unidad defaults to
-    "UNIDAD", missing categoria is auto-classified, missing stock defaults to 0.
+    familia. Rows should already be de-duplicated by codigo (the caller collapses
+    repeats and reports how many were skipped). Matching is by codigo (globally
+    unique): an existing codigo updates that product keeping the fullest
+    description; otherwise a new product is inserted into (sede, material_tipo).
+    Rows without a codigo are matched by nombre (= descripcion) within the
+    sede/material_tipo. Missing unidad defaults to "UNIDAD", missing categoria is
+    auto-classified, missing stock defaults to 0.
 
-    Additionally: precio_venta -> prices.precio (+ precio_sugerido), costo ->
-    prices.costo (both via `_upsert_import_price`, non-destructive when absent),
-    and familia -> products.familia (kept when the import omits it). The Precios
-    sheet UI is unchanged (it never reads/writes costo/familia).
+    familia -> products.familia (kept when the import omits it). This importer
+    NEVER writes prices or cost: prices are maintained only in the Precios
+    screen (GERENCIA-only).
 
     `mode` controls which rows are written: IMPORT_MODE_SYNC inserts new and
     updates existing; IMPORT_MODE_NEW only inserts products that don't exist yet
@@ -583,8 +532,6 @@ def import_products(
                         stock = Decimal(str(row.get("stock") or 0))
                     except (InvalidOperation, ValueError, TypeError):
                         stock = Decimal("0")
-                    precio = _import_decimal(row.get("precio_venta"))
-                    costo = _import_decimal(row.get("costo"))
                     familia = (str(row.get("familia") or "")).strip() or None
 
                     try:
@@ -673,18 +620,6 @@ def import_products(
                             pid = cur.fetchone()[0]
                             inserted += 1
 
-                        # Store pricing/cost data only when supplied.
-                        if precio is not None or costo is not None:
-                            _upsert_import_price(
-                                cur,
-                                pid,
-                                codigo,
-                                descripcion,
-                                categoria,
-                                unidad,
-                                precio,
-                                costo,
-                            )
                         cur.execute("RELEASE SAVEPOINT sp_row")
                     except Exception as exc:  # noqa: BLE001
                         cur.execute("ROLLBACK TO SAVEPOINT sp_row")
@@ -699,147 +634,6 @@ def import_products(
         "inserted": inserted,
         "updated": updated,
         "skipped_mode": skipped_mode,
-        "errors": errors,
-        "error_details": error_details,
-    }
-
-
-# --------------------------------------------------------------------------- #
-# Importar Precios — update pricing fields only, match by codigo
-# --------------------------------------------------------------------------- #
-# Canonical price fields the importer can write (raw dict keys on each row) and
-# the `prices` column each maps to. Never creates products.
-PRICE_IMPORT_FIELDS = (
-    "precio",
-    "costo",
-    "peso",
-    "p1",
-    "p2",
-    "p3",
-    "precio_minimo",
-    "venta_oficial",
-    "venta_3m",
-    "venta_metro",
-)
-
-
-def import_prices(rows: list[dict]) -> dict:
-    """Update pricing fields for existing products, matched by codigo.
-
-    Never creates products. Each row must contain `codigo` plus any subset of
-    PRICE_IMPORT_FIELDS (raw spreadsheet strings; parsed with _import_decimal).
-    Only supplied fields are written (COALESCE keeps curated values otherwise,
-    incl. precio_sugerido/observaciones which this importer never touches).
-    Códigos with no matching product are collected in `not_found` (nothing is
-    written for them). Per-row SAVEPOINT so one bad row can't abort the batch.
-    Returns {"updated", "not_found", "errors", "error_details"}.
-    """
-    updated = 0
-    errors = 0
-    not_found: list[str] = []
-    error_details: list[str] = []
-
-    with _get_conn() as conn:
-        try:
-            with conn.cursor(
-                cursor_factory=psycopg2.extras.RealDictCursor
-            ) as cur:
-                for row in rows:
-                    codigo = (str(row.get("codigo") or "")).strip() or None
-                    if not codigo:
-                        errors += 1
-                        error_details.append("(fila sin código)")
-                        continue
-                    values = {
-                        f: _import_decimal(row.get(f))
-                        for f in PRICE_IMPORT_FIELDS
-                    }
-                    if all(v is None for v in values.values()):
-                        # Nothing to write for this row; skip silently.
-                        continue
-                    cur.execute("SAVEPOINT sp_row")
-                    try:
-                        cur.execute(
-                            "SELECT id, codigo, descripcion, categoria, unidad "
-                            "FROM products WHERE codigo = %s",
-                            (codigo,),
-                        )
-                        prod = cur.fetchone()
-                        if prod is None:
-                            cur.execute("RELEASE SAVEPOINT sp_row")
-                            not_found.append(codigo)
-                            continue
-                        cur.execute(
-                            """
-                            INSERT INTO prices
-                                (product_id, codigo, descripcion, categoria,
-                                 unidad, precio, costo, peso, p1, p2, p3,
-                                 precio_minimo, venta_oficial, venta_3m,
-                                 venta_metro)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                    %s, %s, %s, %s)
-                            ON CONFLICT (product_id) DO UPDATE SET
-                                precio = COALESCE(
-                                    EXCLUDED.precio, prices.precio),
-                                costo = COALESCE(
-                                    EXCLUDED.costo, prices.costo),
-                                peso = COALESCE(
-                                    EXCLUDED.peso, prices.peso),
-                                p1 = COALESCE(EXCLUDED.p1, prices.p1),
-                                p2 = COALESCE(EXCLUDED.p2, prices.p2),
-                                p3 = COALESCE(EXCLUDED.p3, prices.p3),
-                                precio_minimo = COALESCE(
-                                    EXCLUDED.precio_minimo,
-                                    prices.precio_minimo),
-                                venta_oficial = COALESCE(
-                                    EXCLUDED.venta_oficial,
-                                    prices.venta_oficial),
-                                venta_3m = COALESCE(
-                                    EXCLUDED.venta_3m, prices.venta_3m),
-                                venta_metro = COALESCE(
-                                    EXCLUDED.venta_metro, prices.venta_metro),
-                                codigo = COALESCE(
-                                    prices.codigo, EXCLUDED.codigo),
-                                descripcion = COALESCE(
-                                    prices.descripcion, EXCLUDED.descripcion),
-                                categoria = COALESCE(
-                                    prices.categoria, EXCLUDED.categoria),
-                                unidad = COALESCE(
-                                    prices.unidad, EXCLUDED.unidad),
-                                updated_at = now()
-                            """,
-                            (
-                                prod["id"],
-                                prod["codigo"],
-                                prod["descripcion"],
-                                prod["categoria"],
-                                prod["unidad"],
-                                values["precio"],
-                                values["costo"],
-                                values["peso"],
-                                values["p1"],
-                                values["p2"],
-                                values["p3"],
-                                values["precio_minimo"],
-                                values["venta_oficial"],
-                                values["venta_3m"],
-                                values["venta_metro"],
-                            ),
-                        )
-                        cur.execute("RELEASE SAVEPOINT sp_row")
-                        updated += 1
-                    except Exception as exc:  # noqa: BLE001
-                        cur.execute("ROLLBACK TO SAVEPOINT sp_row")
-                        errors += 1
-                        error_details.append(f"{codigo}: {exc}")
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-    return {
-        "updated": updated,
-        "not_found": not_found,
         "errors": errors,
         "error_details": error_details,
     }

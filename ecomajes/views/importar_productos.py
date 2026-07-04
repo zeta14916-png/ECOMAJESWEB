@@ -1,8 +1,8 @@
-"""Intelligent Excel product importer (GERENCIA).
+"""Intelligent Excel product importer.
 
-Upload an .xlsx/.xls file, preview the normalized rows, then import. Columns are
-matched case-insensitively and may include: CODIGO, DESCRIPCION, UNIDAD, PRECIO
-DE VENTA SOLES, COSTO INICIAL SOLES, FAMILIA, CATEGORIA.
+Upload an .xlsx file, preview the normalized rows, then import. Columns are
+matched case-insensitively and may include: CODIGO, DESCRIPCION, UNIDAD,
+FAMILIA, CATEGORIA.
 
 Rules:
 - Código must be unique; repeated códigos in the file are collapsed into one
@@ -10,9 +10,8 @@ Rules:
 - If a código already exists it updates the product; otherwise it is created.
 - Missing categoría is auto-classified from the description; missing unidad
   defaults to "UNIDAD"; stock defaults to 0.
-- PRECIO DE VENTA SOLES -> prices.precio (+ precio_sugerido), COSTO INICIAL
-  SOLES -> prices.costo, FAMILIA -> products.familia. These are stored but never
-  surfaced in the worker Inventario screen or the Precios sheet UI.
+- FAMILIA -> products.familia. This importer NEVER sets prices or cost: prices
+  are maintained only in the Precios screen (GERENCIA-only).
 """
 
 from __future__ import annotations
@@ -39,11 +38,6 @@ _COLUMN_ALIASES = {
     "und": "unidad",
     "um": "unidad",
     "u.m.": "unidad",
-    "precio de venta soles": "precio_venta",
-    "precio venta": "precio_venta",
-    "precio": "precio_venta",
-    "costo inicial soles": "costo",
-    "costo": "costo",
     "familia": "familia",
     "categoria": "categoria",
     "categoría": "categoria",
@@ -85,8 +79,6 @@ def _parse(file) -> list[dict]:
             "descripcion": _cell(r.get("descripcion")),
             "unidad": _cell(r.get("unidad")),
             "categoria": _cell(r.get("categoria")),
-            "precio_venta": _cell(r.get("precio_venta")),
-            "costo": _cell(r.get("costo")),
             "familia": _cell(r.get("familia")),
         }
         if row["codigo"] or row["descripcion"]:
@@ -115,7 +107,7 @@ def _dedupe(records: list[dict]) -> tuple[list[dict], int]:
             existing["descripcion"] = db._fullest(
                 existing["descripcion"], r["descripcion"]
             )
-            for f in ("unidad", "categoria", "precio_venta", "costo", "familia"):
+            for f in ("unidad", "categoria", "familia"):
                 if not existing.get(f) and r.get(f):
                     existing[f] = r[f]
         else:
@@ -137,8 +129,6 @@ def _row_status(row: dict, snapshot: dict[str, dict]) -> str:
     new_unidad = (row.get("unidad") or "").strip() or "UNIDAD"
     new_familia = (row.get("familia") or "").strip()
     new_cat = db.resolve_categoria(row.get("categoria"), row.get("descripcion"))
-    new_precio = db._import_decimal(row.get("precio_venta"))
-    new_costo = db._import_decimal(row.get("costo"))
 
     old_desc = (existing.get("descripcion") or "").strip()
     changed = (
@@ -146,8 +136,6 @@ def _row_status(row: dict, snapshot: dict[str, dict]) -> str:
         or new_cat != (existing.get("categoria") or "")
         or new_unidad != (existing.get("unidad") or "")
         or (new_familia and new_familia != (existing.get("familia") or ""))
-        or (new_precio is not None and new_precio != existing.get("precio"))
-        or (new_costo is not None and new_costo != existing.get("costo"))
     )
     return "🟡 Actualizar" if changed else "⚪ Sin cambios"
 
@@ -165,8 +153,6 @@ def _preview_rows(rows: list[dict], snapshot: dict[str, dict]) -> list[dict]:
                 "Familia": r.get("familia") or "—",
                 "Categoría": resolved,
                 "Unidad": r.get("unidad") or "UNIDAD",
-                "Precio de Venta": r.get("precio_venta") or "—",
-                "Costo Inicial": r.get("costo") or "—",
                 "Stock Inicial": 0,
             }
         )
@@ -264,8 +250,9 @@ def render(ctx: dict) -> None:
             "- **DESCRIPCION**\n"
             "- **UNIDAD** (si falta, se usa «UNIDAD»)\n"
             "- **CATEGORIA** (si falta, se clasifica desde la descripción)\n"
-            "- PRECIO DE VENTA SOLES, COSTO INICIAL SOLES, FAMILIA "
-            "(se guardan para precios/costos y reportes)\n\n"
+            "- **FAMILIA** (opcional, se guarda para reportes)\n\n"
+            "Los precios y costos **no** se importan aquí: se administran solo "
+            "en la pantalla **Precios** (GERENCIA).\n\n"
             "El stock inicial se registra en **0**. Usa Registro de "
             "Movimiento para cargar existencias."
         )
