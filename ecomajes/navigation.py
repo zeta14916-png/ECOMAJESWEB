@@ -15,6 +15,7 @@ from ecomajes.views import (
     movimientos,
     precios,
     productos,
+    recursos_humanos,
     reporte_ventas,
 )
 
@@ -82,6 +83,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — Recursos Humanos (employees + payroll).
+    "ger_recursos_humanos": {
+        "view": "recursos_humanos",
+        "material_tipo": None,
+        "editable": True,
+    },
 }
 
 _VIEWS = {
@@ -91,6 +98,7 @@ _VIEWS = {
     "reporte_ventas": reporte_ventas.render,
     "balance": balance.render,
     "productos": productos.render,
+    "recursos_humanos": recursos_humanos.render,
 }
 
 

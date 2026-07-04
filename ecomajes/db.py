@@ -8,7 +8,9 @@ Only the data operations needed by the current step live here: products
 (inventory) and movements (entrada / salida / venta) with atomic stock updates.
 """
 
+import hashlib
 import os
+import secrets
 from contextlib import contextmanager
 from decimal import Decimal
 
@@ -887,3 +889,320 @@ def expenses_by_month(
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]
+
+
+# --------------------------------------------------------------------------- #
+# Recursos Humanos: employees + payroll
+# --------------------------------------------------------------------------- #
+# Employee status values (Estado).
+EMPLOYEE_ACTIVO = "activo"
+EMPLOYEE_INACTIVO = "inactivo"
+EMPLOYEE_STATUS_LABELS = {
+    EMPLOYEE_ACTIVO: "Activo",
+    EMPLOYEE_INACTIVO: "Inactivo",
+}
+
+
+class EmployeeError(Exception):
+    """Raised when an employee operation fails (e.g. duplicate username)."""
+
+
+def _hash_password(password: str) -> tuple[str, str]:
+    """Return (hash, salt) for a plaintext password (salted SHA-256)."""
+    salt = secrets.token_hex(16)
+    digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    return digest, salt
+
+
+def verify_employee_password(employee_id: int, password: str) -> bool:
+    """Check a plaintext password against the stored salted hash.
+
+    Not yet wired into the login flow; provided so employee credentials can be
+    verified later without changing this data layer.
+    """
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT password_hash, password_salt FROM employees WHERE id = %s",
+                (employee_id,),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return False
+    digest = hashlib.sha256(
+        (row["password_salt"] + password).encode("utf-8")
+    ).hexdigest()
+    return secrets.compare_digest(digest, row["password_hash"])
+
+
+def create_employee(
+    nombre: str,
+    username: str,
+    password: str,
+    rol: str,
+    estado: str = EMPLOYEE_ACTIVO,
+    telefono: str | None = None,
+    direccion: str | None = None,
+    fecha_ingreso=None,
+    salario: Decimal = Decimal("0"),
+) -> None:
+    """Insert a new employee. Password is stored salted+hashed."""
+    if estado not in EMPLOYEE_STATUS_LABELS:
+        raise ValueError(f"Estado inválido: {estado}")
+    password_hash, password_salt = _hash_password(password)
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO employees
+                        (nombre, username, password_hash, password_salt, rol,
+                         estado, telefono, direccion, fecha_ingreso, salario)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        nombre,
+                        username,
+                        password_hash,
+                        password_salt,
+                        rol,
+                        estado,
+                        telefono,
+                        direccion,
+                        fecha_ingreso,
+                        salario,
+                    ),
+                )
+            conn.commit()
+        except psycopg2.errors.UniqueViolation as exc:
+            conn.rollback()
+            raise EmployeeError(
+                "Ya existe un empleado con ese nombre de usuario."
+            ) from exc
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_employees(
+    include_inactive: bool = True,
+    search: str | None = None,
+) -> list[dict]:
+    """Return employees, optionally filtered by status and a text search.
+
+    The search matches (case-insensitively) against nombre or username.
+    """
+    clauses: list[str] = []
+    params: list = []
+    if not include_inactive:
+        clauses.append("estado = %s")
+        params.append(EMPLOYEE_ACTIVO)
+    if search:
+        clauses.append("(nombre ILIKE %s OR username ILIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, nombre, username, rol, estado, telefono, direccion, "
+        "fecha_ingreso, salario, created_at "
+        f"FROM employees {where} ORDER BY nombre"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def get_employee(employee_id: int) -> dict | None:
+    """Return a single employee (without password fields), or None."""
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, nombre, username, rol, estado, telefono, direccion, "
+                "fecha_ingreso, salario, created_at "
+                "FROM employees WHERE id = %s",
+                (employee_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def update_employee(
+    employee_id: int,
+    nombre: str,
+    username: str,
+    rol: str,
+    estado: str,
+    telefono: str | None,
+    direccion: str | None,
+    fecha_ingreso,
+    salario: Decimal,
+    password: str | None = None,
+) -> None:
+    """Update an employee. If `password` is provided, it is re-hashed."""
+    if estado not in EMPLOYEE_STATUS_LABELS:
+        raise ValueError(f"Estado inválido: {estado}")
+    fields = [
+        "nombre = %s",
+        "username = %s",
+        "rol = %s",
+        "estado = %s",
+        "telefono = %s",
+        "direccion = %s",
+        "fecha_ingreso = %s",
+        "salario = %s",
+    ]
+    params: list = [
+        nombre,
+        username,
+        rol,
+        estado,
+        telefono,
+        direccion,
+        fecha_ingreso,
+        salario,
+    ]
+    if password:
+        password_hash, password_salt = _hash_password(password)
+        fields.extend(["password_hash = %s", "password_salt = %s"])
+        params.extend([password_hash, password_salt])
+    params.append(employee_id)
+    sql = f"UPDATE employees SET {', '.join(fields)} WHERE id = %s"
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+            conn.commit()
+        except psycopg2.errors.UniqueViolation as exc:
+            conn.rollback()
+            raise EmployeeError(
+                "Ya existe un empleado con ese nombre de usuario."
+            ) from exc
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def set_employee_status(employee_id: int, estado: str) -> None:
+    """Activate or deactivate an employee (Estado)."""
+    if estado not in EMPLOYEE_STATUS_LABELS:
+        raise ValueError(f"Estado inválido: {estado}")
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE employees SET estado = %s WHERE id = %s",
+                    (estado, employee_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def register_payroll_payment(
+    employee_id: int,
+    fecha,
+    salario: Decimal,
+    bono: Decimal = Decimal("0"),
+    adelanto: Decimal = Decimal("0"),
+    descuento: Decimal = Decimal("0"),
+    observacion: str | None = None,
+    usuario_rol: str | None = None,
+) -> dict:
+    """Register a payroll payment; computes pago_final and stores the record.
+
+    pago_final = salario + bono - adelanto - descuento. Returns the inserted
+    row. Each payment is stored so Balance Financiero can consume it later via
+    ``payroll_total`` (integration prepared, not yet wired into balance).
+    """
+    salario = Decimal(str(salario))
+    bono = Decimal(str(bono))
+    adelanto = Decimal(str(adelanto))
+    descuento = Decimal(str(descuento))
+    pago_final = salario + bono - adelanto - descuento
+    with _get_conn() as conn:
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO payroll_payments
+                        (employee_id, fecha, salario, bono, adelanto, descuento,
+                         pago_final, observacion, usuario_rol)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, employee_id, fecha, salario, bono, adelanto,
+                              descuento, pago_final, observacion, usuario_rol,
+                              created_at
+                    """,
+                    (
+                        employee_id,
+                        fecha,
+                        salario,
+                        bono,
+                        adelanto,
+                        descuento,
+                        pago_final,
+                        observacion,
+                        usuario_rol,
+                    ),
+                )
+                row = cur.fetchone()
+            conn.commit()
+            return dict(row)
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_payroll_payments(
+    employee_id: int | None = None,
+    date_from=None,
+    date_to=None,
+) -> list[dict]:
+    """Return payroll payment history joined with the employee name."""
+    clauses: list[str] = []
+    params: list = []
+    if employee_id is not None:
+        clauses.append("pp.employee_id = %s")
+        params.append(employee_id)
+    if date_from is not None:
+        clauses.append("pp.fecha >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("pp.fecha <= %s")
+        params.append(date_to)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT pp.id, pp.employee_id, e.nombre AS empleado, pp.fecha, "
+        "pp.salario, pp.bono, pp.adelanto, pp.descuento, pp.pago_final, "
+        "pp.observacion, pp.usuario_rol, pp.created_at "
+        "FROM payroll_payments pp JOIN employees e ON e.id = pp.employee_id "
+        f"{where} ORDER BY pp.fecha DESC, pp.id DESC"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def payroll_total(date_from=None, date_to=None) -> Decimal:
+    """Total payroll paid (sum of pago_final) within an optional date range.
+
+    Integration point for Balance Financiero: payroll payments are a labor
+    expense the balance can add later. Returns a Decimal (0 when none).
+    """
+    clauses: list[str] = []
+    params: list = []
+    if date_from is not None:
+        clauses.append("fecha >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("fecha <= %s")
+        params.append(date_to)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"SELECT COALESCE(SUM(pago_final), 0) AS total FROM payroll_payments {where}"
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+    return Decimal(row["total"])

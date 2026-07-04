@@ -1,3 +1,4 @@
 - [ECOMAJES ERP navigation](ecomajes-erp-nav.md) — role/sede-scoped nav tree is the source of truth in config.py; build modules one at a time only after user approval.
 - [Streamlit in router mode](streamlit-router-artifact.md) — repo-root Streamlit shows blank preview under application-router mode; register it as a web artifact at "/" (cd to repo root in run cmds, single workflow).
 - [products table shared by inventory+catalog](products-catalog-inventory-shared-table.md) — one table, two views; catalog create seeds nombre from descripcion, catalog update never touches nombre/stock.
+- [Streamlit live-preview forms](streamlit-live-preview-forms.md) — inputs in st.form don't rerun until submit; move them out for live computed totals; prefill keyed widgets via session_state, not value=.
