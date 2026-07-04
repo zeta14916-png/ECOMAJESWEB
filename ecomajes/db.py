@@ -740,6 +740,50 @@ def list_movements(
             return [dict(row) for row in cur.fetchall()]
 
 
+def list_movements_range(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+    material_tipo: str | None = None,
+    limit: int = 500,
+) -> list[dict]:
+    """Recent movements within an optional date range (read-only, additive).
+
+    Same shape as ``list_movements`` but supports date_from/date_to so reports
+    can scope inventory movements to the selected period. Does not change any
+    existing behaviour.
+    """
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append("p.sede = %s")
+        params.append(sede)
+    if material_tipo is not None:
+        clauses.append("p.material_tipo = %s")
+        params.append(material_tipo)
+    if date_from is not None:
+        clauses.append("m.created_at::date >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("m.created_at::date <= %s")
+        params.append(date_to)
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT m.id, m.tipo, m.cantidad, m.nota, m.usuario_rol, m.created_at, "
+        "m.precio_unitario, m.precio_total, "
+        "p.nombre AS producto, p.unidad, p.sede, p.material_tipo "
+        "FROM movements m JOIN products p ON p.id = m.product_id "
+        f"{where} ORDER BY m.created_at DESC LIMIT %s"
+    )
+    params.append(limit)
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
 # --------------------------------------------------------------------------- #
 # Dashboard / Balance Financiero aggregations (read-only, additive)
 # --------------------------------------------------------------------------- #

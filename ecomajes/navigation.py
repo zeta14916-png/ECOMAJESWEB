@@ -18,6 +18,7 @@ from ecomajes.views import (
     productos,
     recursos_humanos,
     reporte_ventas,
+    reportes,
 )
 
 # --------------------------------------------------------------------------- #
@@ -90,6 +91,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — period-based reports (all sedes when Empresa Completa).
+    "ger_reportes": {
+        "view": "reportes",
+        "material_tipo": None,
+        "editable": True,
+    },
 }
 
 _VIEWS = {
@@ -101,6 +108,7 @@ _VIEWS = {
     "balance": balance.render,
     "productos": productos.render,
     "recursos_humanos": recursos_humanos.render,
+    "reportes": reportes.render,
 }
 
 
