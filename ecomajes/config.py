@@ -118,6 +118,7 @@ _ADMINISTRATIVA_NAV = {
 # Same modules regardless of the chosen sede scope (incl. Empresa Completa).
 _GERENCIA_NAV: list = [
     Page("ger_productos", "Productos"),
+    Page("ger_importar_productos", "Importar Productos"),
     Page("ger_precios", "Precios"),
     Page("ger_recursos_humanos", "Recursos Humanos"),
     Page("ger_gestion_inventario", "Gestión de Inventario"),

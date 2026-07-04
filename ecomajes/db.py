@@ -12,7 +12,7 @@ import hashlib
 import os
 import secrets
 from contextlib import contextmanager
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import psycopg2
 import psycopg2.extras
@@ -149,16 +149,22 @@ def list_catalog_products(
     sede: str | None = None,
     include_all_sedes: bool = False,
     search: str | None = None,
+    material_tipo: str | None = None,
 ) -> list[dict]:
     """Return catalog products, optionally scoped by sede and a text search.
 
     The search matches (case-insensitively) against codigo or descripcion.
+    An optional material_tipo further scopes the result (additive; callers that
+    omit it keep the previous behaviour).
     """
     clauses: list[str] = []
     params: list = []
     if not include_all_sedes and sede is not None:
         clauses.append("sede = %s")
         params.append(sede)
+    if material_tipo is not None:
+        clauses.append("material_tipo = %s")
+        params.append(material_tipo)
     if search:
         clauses.append("(codigo ILIKE %s OR descripcion ILIKE %s)")
         like = f"%{search}%"
@@ -319,6 +325,183 @@ def set_product_active(product_id: int, activo: bool) -> None:
         except Exception:
             conn.rollback()
             raise
+
+
+# --------------------------------------------------------------------------- #
+# Excel product import (intelligent importer)
+# --------------------------------------------------------------------------- #
+# Categories used when auto-classifying a product from its description.
+IMPORT_CATEGORIES = [
+    "TUBO RECTANGULAR",
+    "TUBO REDONDO",
+    "TUBO CUADRADO",
+    "PLATINAS",
+    "ANGULOS",
+    "PLANCHAS",
+    "OTROS",
+]
+
+
+def classify_categoria(descripcion: str | None) -> str:
+    """Best-effort category from a product description (uppercased keywords)."""
+    text = (descripcion or "").upper()
+    if "TUBO" in text:
+        if "RECTANG" in text:
+            return "TUBO RECTANGULAR"
+        if "REDOND" in text:
+            return "TUBO REDONDO"
+        if "CUADR" in text:
+            return "TUBO CUADRADO"
+        return "OTROS"
+    if "PLATINA" in text:
+        return "PLATINAS"
+    if "ANGULO" in text or "ÁNGULO" in text or "ANG." in text:
+        return "ANGULOS"
+    if "PLANCHA" in text:
+        return "PLANCHAS"
+    return "OTROS"
+
+
+def _fullest(a: str | None, b: str | None) -> str:
+    """Return the clearest/fullest of two descriptions (the longer non-empty)."""
+    a = (a or "").strip()
+    b = (b or "").strip()
+    if not a:
+        return b
+    if not b:
+        return a
+    return a if len(a) >= len(b) else b
+
+
+def import_products(
+    rows: list[dict],
+    sede: str,
+    material_tipo: str = TIPO_NUEVO,
+) -> dict:
+    """Import/upsert catalog products from a parsed spreadsheet.
+
+    Each row may contain: codigo, descripcion, unidad, categoria, stock. Rows
+    should already be de-duplicated by codigo (the caller collapses repeats and
+    reports how many were skipped). Matching is by codigo (globally unique): an
+    existing codigo updates that product keeping the fullest description;
+    otherwise a new product is inserted into (sede, material_tipo). Rows without
+    a codigo are matched by nombre (= descripcion) within the sede/material_tipo.
+    Missing unidad defaults to "UNIDAD", missing categoria is auto-classified,
+    missing stock defaults to 0. Never touches the prices table.
+
+    Returns counts: {"inserted", "updated", "errors", "error_details"}.
+    """
+    inserted = 0
+    updated = 0
+    errors = 0
+    error_details: list[str] = []
+
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                for row in rows:
+                    codigo = (str(row.get("codigo") or "")).strip() or None
+                    descripcion = (str(row.get("descripcion") or "")).strip()
+                    if not descripcion and not codigo:
+                        continue
+                    unidad = (str(row.get("unidad") or "")).strip() or "UNIDAD"
+                    categoria = (
+                        str(row.get("categoria") or "").strip()
+                        or classify_categoria(descripcion)
+                    )
+                    try:
+                        stock = Decimal(str(row.get("stock") or 0))
+                    except (InvalidOperation, ValueError, TypeError):
+                        stock = Decimal("0")
+
+                    try:
+                        cur.execute("SAVEPOINT sp_row")
+                        existing = None
+                        if codigo is not None:
+                            cur.execute(
+                                "SELECT id, descripcion FROM products "
+                                "WHERE codigo = %s",
+                                (codigo,),
+                            )
+                            existing = cur.fetchone()
+                        elif descripcion:
+                            cur.execute(
+                                "SELECT id, descripcion FROM products "
+                                "WHERE sede = %s AND material_tipo = %s "
+                                "AND nombre = %s",
+                                (sede, material_tipo, descripcion),
+                            )
+                            existing = cur.fetchone()
+
+                        if existing is not None:
+                            pid, old_desc = existing
+                            cur.execute(
+                                """
+                                UPDATE products SET
+                                    descripcion = %s,
+                                    categoria = %s,
+                                    unidad = %s
+                                WHERE id = %s
+                                """,
+                                (
+                                    _fullest(old_desc, descripcion),
+                                    categoria,
+                                    unidad,
+                                    pid,
+                                ),
+                            )
+                            updated += 1
+                        else:
+                            nombre = descripcion or codigo or "PRODUCTO"
+                            cur.execute(
+                                "SELECT 1 FROM products "
+                                "WHERE sede = %s AND material_tipo = %s "
+                                "AND nombre = %s",
+                                (sede, material_tipo, nombre),
+                            )
+                            if cur.fetchone() is not None:
+                                if codigo:
+                                    nombre = f"{nombre} ({codigo})"
+                                else:
+                                    raise ValueError(
+                                        "Nombre duplicado sin código"
+                                    )
+                            cur.execute(
+                                """
+                                INSERT INTO products
+                                    (sede, material_tipo, nombre, codigo,
+                                     descripcion, categoria, unidad, stock,
+                                     activo)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                                """,
+                                (
+                                    sede,
+                                    material_tipo,
+                                    nombre,
+                                    codigo,
+                                    descripcion,
+                                    categoria,
+                                    unidad,
+                                    stock,
+                                ),
+                            )
+                            inserted += 1
+                        cur.execute("RELEASE SAVEPOINT sp_row")
+                    except Exception as exc:  # noqa: BLE001
+                        cur.execute("ROLLBACK TO SAVEPOINT sp_row")
+                        errors += 1
+                        error_details.append(f"{codigo or descripcion}: {exc}")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "errors": errors,
+        "error_details": error_details,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -1342,6 +1525,7 @@ AUDIT_MOVEMENT = "movimiento_inventario"
 AUDIT_SALES_REPORT = "reporte_generado"
 AUDIT_EXPENSE = "gasto_creado"
 AUDIT_PAYROLL = "pago_nomina"
+AUDIT_IMPORT = "productos_importados"
 AUDIT_ACTION_LABELS = {
     AUDIT_LOGIN: "Inicio de sesión",
     AUDIT_PRODUCT_CREATED: "Producto creado",
@@ -1353,6 +1537,7 @@ AUDIT_ACTION_LABELS = {
     AUDIT_SALES_REPORT: "Reporte de ventas generado",
     AUDIT_EXPENSE: "Gasto registrado",
     AUDIT_PAYROLL: "Pago de nómina",
+    AUDIT_IMPORT: "Productos importados",
 }
 
 

@@ -15,6 +15,7 @@ from ecomajes.views import (
     balance,
     comentarios,
     gestion_inventario,
+    importar_productos,
     inventario,
     movimientos,
     precios,
@@ -115,6 +116,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — intelligent Excel product importer.
+    "ger_importar_productos": {
+        "view": "importar_productos",
+        "material_tipo": None,
+        "editable": True,
+    },
     # GERENCIA — Recursos Humanos (employees + payroll).
     "ger_recursos_humanos": {
         "view": "recursos_humanos",
@@ -155,6 +162,7 @@ _VIEWS = {
     "alertas": alertas.render,
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
+    "importar_productos": importar_productos.render,
     "movimientos": movimientos.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,

@@ -1,1 +1,1 @@
-- [ECOMAJES audit logging & identity](audit-logging.md) — log_audit is best-effort (never raises), called at success points; login is by role so "user"=="role"; new tables created in dev DB via SQL, no migrations.
+- [products.codigo identity](products-codigo-identity.md) — codigo is globally partial-unique (the upsert key); watch the separate (sede,material_tipo,nombre) unique constraint.
