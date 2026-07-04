@@ -17,6 +17,8 @@ Rules:
 
 from __future__ import annotations
 
+import time
+
 import pandas as pd
 import streamlit as st
 
@@ -127,18 +129,20 @@ def _preview_rows(rows: list[dict]) -> list[dict]:
     """Shape deduped rows for the on-screen preview (with defaults applied)."""
     out = []
     for r in rows:
-        categoria = r.get("categoria") or ""
-        if categoria:
-            cat_display = categoria
-        else:
-            cat_display = f"{db.classify_categoria(r['descripcion'])} (auto)"
+        provided = (r.get("categoria") or "").strip()
+        resolved = db.resolve_categoria(provided, r.get("descripcion"))
+        auto = provided.upper() not in db.IMPORT_CATEGORIES
+        cat_display = f"{resolved} (auto)" if auto else resolved
         out.append(
             {
                 "Código": r.get("codigo") or "—",
                 "Descripción": r.get("descripcion") or "—",
+                "Familia": r.get("familia") or "—",
                 "Categoría": cat_display,
                 "Unidad": r.get("unidad") or "UNIDAD",
-                "Stock": 0,
+                "Precio de Venta": r.get("precio_venta") or "—",
+                "Costo Inicial": r.get("costo") or "—",
+                "Stock Inicial": 0,
             }
         )
     return out
@@ -206,46 +210,64 @@ def render(ctx: dict) -> None:
 
     deduped, skipped = _dedupe(records)
 
+    # --- Confirmación ------------------------------------------------------ #
+    st.subheader("Confirmar importación")
     c1, c2, c3 = st.columns(3)
     c1.metric("Filas en el archivo", len(records))
     c2.metric("Productos únicos", len(deduped))
     c3.metric("Duplicados a omitir", skipped)
 
-    st.subheader("Vista previa")
+    st.markdown("**Vista previa**")
     st.dataframe(
         _preview_rows(deduped), use_container_width=True, hide_index=True
     )
 
-    if st.button("📥 Importar productos", type="primary"):
-        result = db.import_products(
-            deduped, sede=sede_destino, material_tipo=tipo_destino
-        )
-        db.log_audit(
-            db.AUDIT_IMPORT,
-            "Importar Productos",
-            detalle=(
-                f"Importados: {result['inserted']}, "
-                f"Actualizados: {result['updated']}, "
-                f"Duplicados omitidos: {skipped}, "
-                f"Errores: {result['errors']}"
-            ),
-            usuario_rol=ctx["usuario_rol"],
-            sede=sede_destino,
-        )
+    b1, b2 = st.columns(2)
+    do_import = b1.button(
+        "✅ Importar Productos", type="primary", use_container_width=True
+    )
+    cancel = b2.button("❌ Cancelar", use_container_width=True)
 
-        st.success("Importación finalizada.")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Importados", result["inserted"])
-        m2.metric("Actualizados", result["updated"])
-        m3.metric("Duplicados omitidos", skipped)
-        m4.metric("Errores", result["errors"])
+    if cancel:
+        st.info("Importación cancelada. No se realizaron cambios.")
+        return
+    if not do_import:
+        return
 
-        if result["error_details"]:
-            with st.expander("Detalle de errores"):
-                for line in result["error_details"]:
-                    st.write(f"• {line}")
+    # --- Importación ------------------------------------------------------- #
+    start = time.perf_counter()
+    result = db.import_products(
+        deduped, sede=sede_destino, material_tipo=tipo_destino
+    )
+    elapsed = time.perf_counter() - start
 
-        st.info(
-            "Los productos ya aparecen en Productos, Inventario, Gestión de "
-            "Inventario, Registro de Movimiento, Precios y Alertas."
-        )
+    db.log_audit(
+        db.AUDIT_IMPORT,
+        "Importar Productos",
+        detalle=(
+            f"Nuevos: {result['inserted']}, "
+            f"Actualizados: {result['updated']}, "
+            f"Duplicados omitidos: {skipped}, "
+            f"Errores: {result['errors']}"
+        ),
+        usuario_rol=ctx["usuario_rol"],
+        sede=sede_destino,
+    )
+
+    st.success("Importación completada")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Productos nuevos", result["inserted"])
+    m2.metric("Productos actualizados", result["updated"])
+    m3.metric("Duplicados omitidos", skipped)
+    m4.metric("Errores encontrados", result["errors"])
+    m5.metric("Tiempo de importación", f"{elapsed:.1f} s")
+
+    if result["error_details"]:
+        with st.expander("Detalle de errores"):
+            for line in result["error_details"]:
+                st.write(f"• {line}")
+
+    st.info(
+        "Los productos ya aparecen en Productos, Inventario, Gestión de "
+        "Inventario, Registro de Movimiento, Precios y Alertas."
+    )

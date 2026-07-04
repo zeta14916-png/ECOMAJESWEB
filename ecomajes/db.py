@@ -10,6 +10,7 @@ Only the data operations needed by the current step live here: products
 
 import hashlib
 import os
+import re
 import secrets
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
@@ -335,31 +336,76 @@ IMPORT_CATEGORIES = [
     "TUBO RECTANGULAR",
     "TUBO REDONDO",
     "TUBO CUADRADO",
+    "PLANCHAS",
     "PLATINAS",
     "ANGULOS",
-    "PLANCHAS",
+    "DISCOS",
+    "EPP",
+    "MALLAS",
+    "ALAMBRES",
+    "PERNERIA",
+    "CERRAJERIA",
     "OTROS",
 ]
 
+# Ordered keyword rules for auto-classification. The first rule with a keyword
+# found in the description (matched at a word boundary, so "MANGUERA" does not
+# match "ANG") wins. Keywords are uppercased; accents are stripped before match.
+_CATEGORY_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("RECTANGULAR", "RECT"), "TUBO RECTANGULAR"),
+    (("REDONDO", "REDOND", "RED"), "TUBO REDONDO"),
+    (("CUADRADO", "CUADR", "CUAD"), "TUBO CUADRADO"),
+    (("PLANCHA",), "PLANCHAS"),
+    (("PLATINA", "PLAT"), "PLATINAS"),
+    (("ANGULO", "ANG"), "ANGULOS"),
+    (("DISCO",), "DISCOS"),
+    (("GUANTE", "CASCO", "LENTE", "BOTA", "ARNES", "MASCARILLA"), "EPP"),
+    (("MALLA",), "MALLAS"),
+    (("ALAMBRE",), "ALAMBRES"),
+    (("PERNO", "TORNILLO", "TUERCA", "ARANDELA"), "PERNERIA"),
+    (("CERRADURA", "CERROJO"), "CERRAJERIA"),
+]
+
+
+def _strip_accents(text: str) -> str:
+    """Fold the Spanish accents that appear in product descriptions."""
+    for a, b in (
+        ("Á", "A"),
+        ("É", "E"),
+        ("Í", "I"),
+        ("Ó", "O"),
+        ("Ú", "U"),
+        ("Ñ", "N"),
+    ):
+        text = text.replace(a, b)
+    return text
+
 
 def classify_categoria(descripcion: str | None) -> str:
-    """Best-effort category from a product description (uppercased keywords)."""
-    text = (descripcion or "").upper()
-    if "TUBO" in text:
-        if "RECTANG" in text:
-            return "TUBO RECTANGULAR"
-        if "REDOND" in text:
-            return "TUBO REDONDO"
-        if "CUADR" in text:
-            return "TUBO CUADRADO"
-        return "OTROS"
-    if "PLATINA" in text:
-        return "PLATINAS"
-    if "ANGULO" in text or "ÁNGULO" in text or "ANG." in text:
-        return "ANGULOS"
-    if "PLANCHA" in text:
-        return "PLANCHAS"
+    """Best-effort category from a product description (keyword rules).
+
+    Keywords match at a word boundary (prefix), so short abbreviations like
+    "ANG" classify "ANGULO 1x1" but never "MANGUERA".
+    """
+    text = _strip_accents((descripcion or "").upper())
+    for keywords, categoria in _CATEGORY_RULES:
+        pattern = r"\b(" + "|".join(re.escape(k) for k in keywords) + r")"
+        if re.search(pattern, text):
+            return categoria
     return "OTROS"
+
+
+def resolve_categoria(provided: str | None, descripcion: str | None) -> str:
+    """Return a valid category: keep the provided one if valid, else classify.
+
+    A provided category is "valid" only when it matches one of
+    ``IMPORT_CATEGORIES`` (case-insensitive). Empty or unrecognized categories
+    fall back to :func:`classify_categoria`.
+    """
+    candidate = (provided or "").strip().upper()
+    if candidate in IMPORT_CATEGORIES:
+        return candidate
+    return classify_categoria(descripcion)
 
 
 def _fullest(a: str | None, b: str | None) -> str:
@@ -481,9 +527,8 @@ def import_products(
                     if not descripcion and not codigo:
                         continue
                     unidad = (str(row.get("unidad") or "")).strip() or "UNIDAD"
-                    categoria = (
-                        str(row.get("categoria") or "").strip()
-                        or classify_categoria(descripcion)
+                    categoria = resolve_categoria(
+                        row.get("categoria"), descripcion
                     )
                     try:
                         stock = Decimal(str(row.get("stock") or 0))
