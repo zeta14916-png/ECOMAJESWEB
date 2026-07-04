@@ -1087,7 +1087,10 @@ def restore_products_backup(backup_id: int | None = None) -> dict:
 # --------------------------------------------------------------------------- #
 # Prices (price list linked to products)
 # --------------------------------------------------------------------------- #
-# Editable price fields stored in the `prices` table (one row per product).
+# Editable price fields stored in the `prices` table (one row per product),
+# written by the Precios editor via save_prices. `precio_sugerido` is kept here
+# because the Precios view mirrors it to `precio` on save, so the suggested sale
+# price used by ventas always tracks the maintained price.
 PRICE_FIELDS = (
     "codigo",
     "descripcion",
@@ -1095,11 +1098,15 @@ PRICE_FIELDS = (
     "unidad",
     "peso",
     "precio",
+    "precio_sugerido",
+    "costo",
     "p1",
     "p2",
     "p3",
     "precio_minimo",
-    "precio_sugerido",
+    "venta_oficial",
+    "venta_3m",
+    "venta_metro",
     "observaciones",
 )
 
@@ -1128,7 +1135,8 @@ def list_prices(
         "SELECT p.id AS product_id, p.sede, p.material_tipo, p.nombre, "
         "p.sku, p.unidad AS producto_unidad, "
         "pr.codigo, pr.descripcion, pr.categoria, pr.unidad, pr.peso, "
-        "pr.precio, pr.p1, pr.p2, pr.p3, pr.precio_minimo, "
+        "pr.precio, pr.costo, pr.p1, pr.p2, pr.p3, pr.precio_minimo, "
+        "pr.venta_oficial, pr.venta_3m, pr.venta_metro, "
         "pr.precio_sugerido, pr.observaciones "
         "FROM products p LEFT JOIN prices pr ON pr.product_id = p.id "
         f"{where} ORDER BY p.sede, p.material_tipo, p.nombre"

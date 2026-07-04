@@ -1,10 +1,12 @@
 """Price list view for ECOMAJES ERP.
 
-Shows a mini spreadsheet (``st.data_editor``) with one row per product in the
-current scope. Prices can be edited inline and saved. Rows without a stored
-price are seeded from the product data (code / description / unit).
+The single place where prices are maintained. Shows a spreadsheet-like editor
+(``st.data_editor``) with one row per product in the current scope. Prices can
+be edited inline and saved; rows without a stored price are seeded from the
+product data (code / description / unit).
 
-Saved prices are used automatically for future sales (see
+Only GERENCIA may edit prices. Any other role that reaches this view sees it in
+read-only mode. Saved prices are used automatically for future sales (see
 ``db.register_movement``) and movement reports.
 """
 
@@ -13,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 import pandas as pd
 import streamlit as st
 
-from ecomajes import db
+from ecomajes import config, db
 
 # Display column -> internal price field.
 _TEXT_COLS = {
@@ -25,12 +27,15 @@ _TEXT_COLS = {
 }
 _NUM_COLS = {
     "Peso": "peso",
-    "Precio": "precio",
+    "Precio en dólares": "precio",
+    "Costo": "costo",
     "P1": "p1",
     "P2": "p2",
     "P3": "p3",
-    "Precio mínimo": "precio_minimo",
-    "Precio sugerido": "precio_sugerido",
+    "Venta mínima": "precio_minimo",
+    "Venta oficial": "venta_oficial",
+    "Venta por 3 metros": "venta_3m",
+    "Venta por metro": "venta_metro",
 }
 # Column order shown in the sheet.
 _ORDER = [
@@ -39,12 +44,15 @@ _ORDER = [
     "Categoría",
     "Unidad",
     "Peso",
-    "Precio",
+    "Precio en dólares",
+    "Costo",
     "P1",
     "P2",
     "P3",
-    "Precio mínimo",
-    "Precio sugerido",
+    "Venta mínima",
+    "Venta oficial",
+    "Venta por 3 metros",
+    "Venta por metro",
     "Observaciones",
 ]
 
@@ -62,12 +70,15 @@ def _to_display_rows(rows: list[dict]) -> tuple[list[dict], list[int]]:
                 "Categoría": r.get("categoria") or "",
                 "Unidad": r.get("unidad") or r.get("producto_unidad") or "",
                 "Peso": _as_float(r.get("peso")),
-                "Precio": _as_float(r.get("precio")),
+                "Precio en dólares": _as_float(r.get("precio")),
+                "Costo": _as_float(r.get("costo")),
                 "P1": _as_float(r.get("p1")),
                 "P2": _as_float(r.get("p2")),
                 "P3": _as_float(r.get("p3")),
-                "Precio mínimo": _as_float(r.get("precio_minimo")),
-                "Precio sugerido": _as_float(r.get("precio_sugerido")),
+                "Venta mínima": _as_float(r.get("precio_minimo")),
+                "Venta oficial": _as_float(r.get("venta_oficial")),
+                "Venta por 3 metros": _as_float(r.get("venta_3m")),
+                "Venta por metro": _as_float(r.get("venta_metro")),
                 "Observaciones": r.get("observaciones") or "",
             }
         )
@@ -103,13 +114,15 @@ def _parse_text(value) -> str | None:
 
 
 def _column_config() -> dict:
-    config = {}
+    config_map = {}
     for col in _TEXT_COLS:
-        config[col] = st.column_config.TextColumn(col)
+        config_map[col] = st.column_config.TextColumn(col)
     for col in _NUM_COLS:
         fmt = "%.3f" if col == "Peso" else "%.2f"
-        config[col] = st.column_config.NumberColumn(col, format=fmt, min_value=0.0)
-    return config
+        config_map[col] = st.column_config.NumberColumn(
+            col, format=fmt, min_value=0.0
+        )
+    return config_map
 
 
 def _save(edited: pd.DataFrame, product_ids: list[int]) -> int:
@@ -121,6 +134,9 @@ def _save(edited: pd.DataFrame, product_ids: list[int]) -> int:
             row[field] = _parse_text(record[col])
         for col, field in _NUM_COLS.items():
             row[field] = _parse_decimal(record[col])
+        # Keep the suggested sale price (used by ventas) in sync with the
+        # maintained price; there is no separate "precio sugerido" column.
+        row["precio_sugerido"] = row.get("precio")
         rows.append(row)
     return db.save_prices(rows)
 
@@ -128,10 +144,15 @@ def _save(edited: pd.DataFrame, product_ids: list[int]) -> int:
 def render(ctx: dict) -> None:
     st.header(ctx["title"])
     st.caption(ctx["breadcrumb"])
-    st.write(
-        "Edita los precios como en una hoja de cálculo y guarda los cambios. "
-        "Los precios se aplican automáticamente a las ventas futuras."
-    )
+
+    can_edit = ctx["usuario_rol"] == config.ROLE_GERENCIA
+    if can_edit:
+        st.write(
+            "Edita los precios como en una hoja de cálculo y guarda los cambios. "
+            "Los precios se aplican automáticamente a las ventas futuras."
+        )
+    else:
+        st.info("Solo lectura. Los precios los administra únicamente GERENCIA.")
 
     rows = db.list_prices(
         sede=ctx["sede"],
@@ -154,8 +175,12 @@ def render(ctx: dict) -> None:
         use_container_width=True,
         hide_index=True,
         column_config=_column_config(),
+        disabled=not can_edit,
         key="precios_editor",
     )
+
+    if not can_edit:
+        return
 
     if st.button("💾 Guardar precios", type="primary"):
         try:

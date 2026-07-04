@@ -102,14 +102,25 @@ _ADMIN_MATERIAL_SEGUNDO_USO = Group(
     ),
 )
 
+_ADMIN_IMPORTAR = Group(
+    label="Importar",
+    icon="📥",
+    pages=(
+        Page("adm_importar_productos", "Importar Productos"),
+        Page("adm_importar_stock", "Importar Stock"),
+    ),
+)
+
 _ADMINISTRATIVA_NAV = {
     SEDE_PRINCIPAL: [
         _ADMIN_MATERIAL_NUEVO,
         _ADMIN_MATERIAL_SEGUNDO_USO,
+        _ADMIN_IMPORTAR,
         Page("adm_comentarios", "Comentarios"),
     ],
     SEDE_SUCURSAL: [
         _ADMIN_MATERIAL_NUEVO,
+        _ADMIN_IMPORTAR,
         Page("adm_comentarios", "Comentarios"),
     ],
 }
@@ -121,7 +132,6 @@ _GERENCIA_IMPORTAR = Group(
     icon="📥",
     pages=(
         Page("ger_importar_productos", "Importar Productos"),
-        Page("ger_importar_precios", "Importar Precios"),
         Page("ger_importar_stock", "Importar Stock"),
     ),
 )

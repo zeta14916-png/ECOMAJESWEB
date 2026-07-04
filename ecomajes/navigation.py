@@ -15,7 +15,6 @@ from ecomajes.views import (
     balance,
     comentarios,
     gestion_inventario,
-    importar_precios,
     importar_productos,
     importar_stock,
     inventario,
@@ -88,6 +87,17 @@ ROUTES = {
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": False,
     },
+    # ÁREA ADMINISTRATIVA — importers (sede/material chosen inside each view).
+    "adm_importar_productos": {
+        "view": "importar_productos",
+        "material_tipo": None,
+        "editable": True,
+    },
+    "adm_importar_stock": {
+        "view": "importar_stock",
+        "material_tipo": None,
+        "editable": True,
+    },
     # GERENCIA — consolidated inventory overview (combined across sedes).
     "ger_gestion_inventario": {
         "view": "gestion_inventario",
@@ -121,12 +131,6 @@ ROUTES = {
     # GERENCIA — intelligent Excel product importer.
     "ger_importar_productos": {
         "view": "importar_productos",
-        "material_tipo": None,
-        "editable": True,
-    },
-    # GERENCIA — price importer (multi-sheet Excel, match by codigo).
-    "ger_importar_precios": {
-        "view": "importar_precios",
         "material_tipo": None,
         "editable": True,
     },
@@ -177,7 +181,6 @@ _VIEWS = {
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
     "importar_productos": importar_productos.render,
-    "importar_precios": importar_precios.render,
     "importar_stock": importar_stock.render,
     "movimientos": movimientos.render,
     "precios": precios.render,
