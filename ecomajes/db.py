@@ -705,6 +705,131 @@ def import_products(
 
 
 # --------------------------------------------------------------------------- #
+# Product/price backups (import safety net)
+# --------------------------------------------------------------------------- #
+def create_products_backup(import_mode: str) -> dict:
+    """Snapshot the current products + prices tables before an import.
+
+    Stored as JSONB in `product_backups` (whole tables via `jsonb_agg`), with
+    the import mode and the number of existing products. Returns the new
+    backup's id, created_at and product_count. Read-only against products.
+    """
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO product_backups
+                    (import_mode, product_count, products_data, prices_data)
+                SELECT
+                    %s,
+                    (SELECT count(*) FROM products),
+                    (SELECT COALESCE(jsonb_agg(to_jsonb(p)), '[]'::jsonb)
+                       FROM products p),
+                    (SELECT COALESCE(jsonb_agg(to_jsonb(pr)), '[]'::jsonb)
+                       FROM prices pr)
+                RETURNING id, created_at, product_count
+                """,
+                (import_mode,),
+            )
+            bid, created_at, count = cur.fetchone()
+        conn.commit()
+    return {"id": bid, "created_at": created_at, "product_count": count}
+
+
+def get_last_backup() -> dict | None:
+    """Return metadata for the most recent backup (no snapshot payload)."""
+    with _get_conn() as conn:
+        with conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                "SELECT id, created_at, import_mode, product_count, restored_at "
+                "FROM product_backups ORDER BY id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def restore_products_backup(backup_id: int | None = None) -> dict:
+    """Restore products + prices to a stored backup (latest if id is None).
+
+    Reverts exactly what an import can change without touching stock:
+    - products created after the backup are deleted (movements/prices cascade);
+    - existing products' catalog fields (descripcion/categoria/unidad/familia)
+      are restored to the snapshot (stock is never modified);
+    - the prices table is rebuilt from the snapshot.
+    Runs in a single transaction. Raises ValueError if no backup exists.
+    Returns {"product_count", "backup_id"}.
+    """
+    with _get_conn() as conn:
+        try:
+            with conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                if backup_id is None:
+                    cur.execute(
+                        "SELECT * FROM product_backups "
+                        "ORDER BY id DESC LIMIT 1"
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM product_backups WHERE id = %s",
+                        (backup_id,),
+                    )
+                backup = cur.fetchone()
+                if backup is None:
+                    raise ValueError("No hay respaldo disponible para restaurar.")
+
+                prods = psycopg2.extras.Json(backup["products_data"])
+                prices = psycopg2.extras.Json(backup["prices_data"])
+
+                # 1. Drop products created after the backup (movements/prices
+                #    cascade; replenishment_requests set null).
+                cur.execute(
+                    "DELETE FROM products WHERE id NOT IN "
+                    "(SELECT (e->>'id')::int "
+                    " FROM jsonb_array_elements(%s) e)",
+                    (prods,),
+                )
+                # 2. Revert catalog fields on surviving products (not stock).
+                cur.execute(
+                    """
+                    UPDATE products p SET
+                        descripcion = s.descripcion,
+                        categoria = s.categoria,
+                        unidad = s.unidad,
+                        familia = s.familia
+                    FROM jsonb_to_recordset(%s) AS s(
+                        id int, descripcion text, categoria text,
+                        unidad text, familia text
+                    )
+                    WHERE p.id = s.id
+                    """,
+                    (prods,),
+                )
+                # 3. Rebuild prices exactly from the snapshot.
+                cur.execute("DELETE FROM prices")
+                cur.execute(
+                    "INSERT INTO prices "
+                    "SELECT * FROM jsonb_populate_recordset(NULL::prices, %s)",
+                    (prices,),
+                )
+                # 4. Mark the backup as restored.
+                cur.execute(
+                    "UPDATE product_backups SET restored_at = now() "
+                    "WHERE id = %s",
+                    (backup["id"],),
+                )
+                count = backup["product_count"]
+                bid = backup["id"]
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return {"product_count": count, "backup_id": bid}
+
+
+# --------------------------------------------------------------------------- #
 # Prices (price list linked to products)
 # --------------------------------------------------------------------------- #
 # Editable price fields stored in the `prices` table (one row per product).

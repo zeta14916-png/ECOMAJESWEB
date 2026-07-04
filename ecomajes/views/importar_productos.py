@@ -199,33 +199,124 @@ def _confirm_dialog(
     if b2.button(
         "✅ Importar Productos", type="primary", use_container_width=True
     ):
-        start = time.perf_counter()
-        result = db.import_products(
-            deduped, sede=sede, material_tipo=tipo, mode=modo
-        )
-        elapsed = time.perf_counter() - start
+        # Always snapshot the current catalog first so a failed import can be
+        # rolled back automatically and GERENCIA can restore it later.
+        backup = db.create_products_backup(modo)
+
+        outcome: dict
+        try:
+            start = time.perf_counter()
+            result = db.import_products(
+                deduped, sede=sede, material_tipo=tipo, mode=modo
+            )
+            elapsed = time.perf_counter() - start
+        except Exception as exc:  # noqa: BLE001
+            # Undo any partial damage by restoring the pre-import snapshot.
+            restored = True
+            try:
+                db.restore_products_backup(backup["id"])
+            except Exception:  # noqa: BLE001
+                restored = False
+            outcome = {
+                "failed": True,
+                "error": str(exc),
+                "restored": restored,
+                "backup": backup,
+            }
+        else:
+            db.log_audit(
+                db.AUDIT_IMPORT,
+                "Importar Productos",
+                detalle=(
+                    f"Modo: {modo}, Nuevos: {result['inserted']}, "
+                    f"Actualizados: {result['updated']}, "
+                    f"Omitidos por modo: {result['skipped_mode']}, "
+                    f"Duplicados omitidos: {skipped}, "
+                    f"Errores: {result['errors']}"
+                ),
+                usuario_rol=usuario_rol,
+                sede=sede,
+            )
+            result["skipped_dup"] = skipped
+            result["elapsed"] = elapsed
+            result["backup"] = backup
+            outcome = result
+
+        st.session_state["import_result"] = outcome
+        st.rerun()
+
+
+@st.dialog("Restaurar inventario")
+def _restore_dialog(backup: dict, usuario_rol: str) -> None:
+    """Confirmation modal for restoring the last backup (GERENCIA)."""
+    st.warning(
+        "Estás a punto de restaurar el inventario anterior. Se perderán "
+        "todos los cambios posteriores a ese respaldo."
+    )
+    when = backup["created_at"].strftime("%d/%m/%Y %H:%M")
+    st.caption(
+        f"Respaldo del {when} · {backup['product_count']} productos"
+    )
+
+    b1, b2 = st.columns(2)
+    if b1.button("❌ Cancelar", use_container_width=True):
+        st.rerun()
+    if b2.button("♻️ Restaurar", type="primary", use_container_width=True):
+        db.restore_products_backup(backup["id"])
         db.log_audit(
             db.AUDIT_IMPORT,
             "Importar Productos",
             detalle=(
-                f"Modo: {modo}, Nuevos: {result['inserted']}, "
-                f"Actualizados: {result['updated']}, "
-                f"Omitidos por modo: {result['skipped_mode']}, "
-                f"Duplicados omitidos: {skipped}, "
-                f"Errores: {result['errors']}"
+                f"Inventario restaurado desde respaldo #{backup['id']} "
+                f"({backup['product_count']} productos)"
             ),
             usuario_rol=usuario_rol,
-            sede=sede,
         )
-        result["skipped_dup"] = skipped
-        result["elapsed"] = elapsed
-        st.session_state["import_result"] = result
+        st.session_state["restore_done"] = True
         st.rerun()
+
+
+def _render_backup_panel(ctx: dict) -> None:
+    """GERENCIA-only backup status + Restaurar último respaldo button."""
+    if ctx.get("usuario_rol") != config.ROLE_GERENCIA:
+        return
+
+    if st.session_state.pop("restore_done", False):
+        st.success("Inventario restaurado correctamente.")
+
+    last = db.get_last_backup()
+    with st.container(border=True):
+        st.markdown("**🛟 Respaldo del inventario**")
+        if last:
+            when = last["created_at"].strftime("%d/%m/%Y %H:%M")
+            modo = db.IMPORT_MODE_LABELS.get(
+                last["import_mode"], last["import_mode"]
+            )
+            st.caption(
+                f"Último respaldo: {when} · Modo: {modo} · "
+                f"Productos: {last['product_count']}"
+            )
+        else:
+            st.caption(
+                "Aún no hay respaldos. Se crea uno automáticamente antes de "
+                "cada importación."
+            )
+        if st.button(
+            "♻️ Restaurar último respaldo",
+            disabled=last is None,
+            help=(
+                "Devuelve el catálogo de productos y precios al estado del "
+                "último respaldo."
+            ),
+        ):
+            _restore_dialog(last, ctx["usuario_rol"])
 
 
 def render(ctx: dict) -> None:
     st.header(ctx["title"])
     st.caption(ctx["breadcrumb"])
+
+    _render_backup_panel(ctx)
 
     st.markdown(
         "Sube un archivo **Excel** con tus productos. El sistema limpia los "
@@ -334,6 +425,24 @@ def render(ctx: dict) -> None:
 
 def _render_summary(result: dict) -> None:
     """Render the post-import summary from a stored import result."""
+    backup = result.get("backup")
+    if backup:
+        st.success("Respaldo creado correctamente.")
+
+    if result.get("failed"):
+        if result.get("restored"):
+            st.error(
+                "La importación falló. Se restauró automáticamente el "
+                "inventario anterior."
+            )
+        else:
+            st.error(
+                "La importación falló y no se pudo restaurar el respaldo "
+                "automáticamente. Usa «Restaurar último respaldo»."
+            )
+        st.caption(f"Detalle: {result.get('error', 'error desconocido')}")
+        return
+
     st.success("Importación completada")
     m1, m2, m3, m4, m5, m6 = st.columns(6)
     m1.metric("Productos nuevos", result["inserted"])
