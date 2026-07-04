@@ -10,6 +10,7 @@ import streamlit as st
 from ecomajes import config, db, session
 from ecomajes.views import (
     _placeholder,
+    alertas,
     auditoria,
     balance,
     comentarios,
@@ -52,6 +53,11 @@ ROUTES = {
         "material_tipo": db.TIPO_NUEVO,
         "editable": True,
     },
+    "adm_mn_alertas": {
+        "view": "alertas",
+        "material_tipo": db.TIPO_NUEVO,
+        "editable": False,
+    },
     # ÁREA ADMINISTRATIVA — Material Segundo Uso.
     "adm_msu_registro_movimiento": {
         "view": "movimientos",
@@ -72,6 +78,11 @@ ROUTES = {
         "view": "productos",
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": True,
+    },
+    "adm_msu_alertas": {
+        "view": "alertas",
+        "material_tipo": db.TIPO_SEGUNDO_USO,
+        "editable": False,
     },
     # GERENCIA — consolidated inventory overview (combined across sedes).
     "ger_gestion_inventario": {
@@ -134,6 +145,7 @@ ROUTES = {
 }
 
 _VIEWS = {
+    "alertas": alertas.render,
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
     "movimientos": movimientos.render,

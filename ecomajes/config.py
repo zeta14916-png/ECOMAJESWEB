@@ -82,9 +82,10 @@ _ADMIN_MATERIAL_NUEVO = Group(
     pages=(
         Page("adm_mn_registro_movimiento", "Registro de Movimiento"),
         Page("adm_mn_inventario", "Inventario"),
+        Page("adm_mn_gestion_inventario", "Gestión de Inventario"),
+        Page("adm_mn_alertas", "Alertas"),
         Page("adm_mn_reporte_ventas", "Reporte de Ventas"),
         Page("adm_mn_historial", "Historial"),
-        Page("adm_mn_gestion_inventario", "Gestión de Inventario"),
     ),
 )
 
@@ -94,9 +95,10 @@ _ADMIN_MATERIAL_SEGUNDO_USO = Group(
     pages=(
         Page("adm_msu_registro_movimiento", "Registro de Movimiento"),
         Page("adm_msu_inventario", "Inventario"),
+        Page("adm_msu_gestion_inventario", "Gestión de Inventario"),
+        Page("adm_msu_alertas", "Alertas"),
         Page("adm_msu_reporte_ventas", "Reporte de Ventas"),
         Page("adm_msu_historial", "Historial"),
-        Page("adm_msu_gestion_inventario", "Gestión de Inventario"),
     ),
 )
 
