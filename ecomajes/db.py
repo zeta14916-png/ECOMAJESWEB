@@ -432,14 +432,28 @@ def register_movement(
     nota: str | None,
     usuario_rol: str | None,
     sede: str | None,
+    tipo_venta: str | None = None,
+    precio_final: Decimal | None = None,
+    autorizado_por: str | None = None,
 ) -> Decimal:
     """Register a movement and update the product stock atomically.
 
     Returns the resulting stock. Raises StockError for an unknown product or
     when a salida/venta would drive stock negative.
+
+    Sales (``venta``) optionally carry a sale type (``tipo_venta``). For special
+    sales (metro / centímetro / corte personalizado) the caller passes an
+    explicit ``precio_final`` (the total amount charged) and, optionally, who
+    authorised it (``autorizado_por``). ``precio_final`` is stored as
+    ``precio_total`` so every report that sums ``precio_total`` uses the final
+    price. When ``precio_final`` is not given (a plain unit sale), the configured
+    unit price is snapshotted from ``prices`` exactly as before. This function
+    NEVER derives or changes anything other than the primary stock movement.
     """
     if tipo not in _ADDS_STOCK | _REMOVES_STOCK:
         raise StockError(f"Tipo de movimiento inválido: {tipo}")
+    if tipo_venta is not None and tipo_venta not in TIPO_VENTA_LABELS:
+        raise StockError(f"Tipo de venta inválido: {tipo_venta}")
 
     with _get_conn() as conn:
         try:
@@ -467,26 +481,40 @@ def register_movement(
                     (new_stock, product_id),
                 )
 
-                # For sales, snapshot the configured unit price so future
-                # sales and movement reports use it automatically.
+                # Sale pricing: an explicit precio_final (special sales) wins and
+                # is stored as precio_total so reports use it; otherwise snapshot
+                # the configured unit price (plain unit sale, unchanged).
                 precio_unitario = None
                 precio_total = None
+                stored_tipo_venta = None
+                stored_autorizado = None
                 if tipo == MOVEMENT_VENTA:
-                    cur.execute(
-                        "SELECT precio FROM prices WHERE product_id = %s",
-                        (product_id,),
-                    )
-                    prow = cur.fetchone()
-                    if prow is not None and prow[0] is not None:
-                        precio_unitario = prow[0]
-                        precio_total = precio_unitario * cantidad
+                    stored_tipo_venta = tipo_venta or VENTA_UNIDAD
+                    stored_autorizado = autorizado_por
+                    if precio_final is not None:
+                        precio_total = precio_final
+                        precio_unitario = (
+                            precio_final / cantidad
+                            if cantidad and cantidad != 0
+                            else precio_final
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT precio FROM prices WHERE product_id = %s",
+                            (product_id,),
+                        )
+                        prow = cur.fetchone()
+                        if prow is not None and prow[0] is not None:
+                            precio_unitario = prow[0]
+                            precio_total = precio_unitario * cantidad
 
                 cur.execute(
                     """
                     INSERT INTO movements
                         (product_id, tipo, cantidad, nota, usuario_rol, sede,
-                         precio_unitario, precio_total)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                         precio_unitario, precio_total, tipo_venta,
+                         autorizado_por)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         product_id,
@@ -497,6 +525,8 @@ def register_movement(
                         sede,
                         precio_unitario,
                         precio_total,
+                        stored_tipo_venta,
+                        stored_autorizado,
                     ),
                 )
             conn.commit()
@@ -728,7 +758,7 @@ def list_movements(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
         "SELECT m.id, m.tipo, m.cantidad, m.nota, m.usuario_rol, m.created_at, "
-        "m.precio_unitario, m.precio_total, "
+        "m.precio_unitario, m.precio_total, m.tipo_venta, m.autorizado_por, "
         "p.nombre AS producto, p.unidad, p.sede, p.material_tipo "
         "FROM movements m JOIN products p ON p.id = m.product_id "
         f"{where} ORDER BY m.created_at DESC LIMIT %s"
