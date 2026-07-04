@@ -178,6 +178,41 @@ def list_catalog_products(
             return [dict(row) for row in cur.fetchall()]
 
 
+def inventory_overview(sede_principal: str, sede_sucursal: str) -> list[dict]:
+    """Return one combined row per product (across sedes) for inventory mgmt.
+
+    Products are grouped by (material_tipo, nombre) — the schema's per-sede
+    identity — so the same product held in both sedes collapses into a single
+    row instead of being duplicated. Per-sede stock is split into principal and
+    sucursal columns; representative catalog fields (codigo, descripcion,
+    categoria, unidad, stock_minimo) are taken from the group. Presence flags
+    (in_principal/in_sucursal) allow the caller to scope by location even when a
+    sede holds zero stock. Read-only; does not mutate products or prices.
+    """
+    sql = (
+        "SELECT "
+        "  material_tipo, "
+        "  nombre, "
+        "  MAX(codigo) AS codigo, "
+        "  MAX(descripcion) AS descripcion, "
+        "  MAX(categoria) AS categoria, "
+        "  MAX(unidad) AS unidad, "
+        "  COALESCE(SUM(stock) FILTER (WHERE sede = %s), 0) AS stock_principal, "
+        "  COALESCE(SUM(stock) FILTER (WHERE sede = %s), 0) AS stock_sucursal, "
+        "  COALESCE(MAX(stock_minimo), 0) AS stock_minimo, "
+        "  bool_or(sede = %s) AS in_principal, "
+        "  bool_or(sede = %s) AS in_sucursal "
+        "FROM products "
+        "GROUP BY material_tipo, nombre "
+        "ORDER BY MAX(codigo) NULLS LAST, MAX(descripcion) NULLS LAST, nombre"
+    )
+    params = [sede_principal, sede_sucursal, sede_principal, sede_sucursal]
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
 def create_catalog_product(
     sede: str,
     descripcion: str,

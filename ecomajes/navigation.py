@@ -11,6 +11,7 @@ from ecomajes import config, db, session
 from ecomajes.views import (
     _placeholder,
     balance,
+    gestion_inventario,
     inventario,
     movimientos,
     precios,
@@ -59,9 +60,9 @@ ROUTES = {
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": True,
     },
-    # GERENCIA — consolidated inventory management (all material types).
+    # GERENCIA — consolidated inventory overview (combined across sedes).
     "ger_gestion_inventario": {
-        "view": "inventario",
+        "view": "gestion_inventario",
         "material_tipo": None,
         "editable": True,
     },
@@ -93,6 +94,7 @@ ROUTES = {
 
 _VIEWS = {
     "inventario": inventario.render,
+    "gestion_inventario": gestion_inventario.render,
     "movimientos": movimientos.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,
