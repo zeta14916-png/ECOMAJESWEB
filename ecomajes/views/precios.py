@@ -163,5 +163,12 @@ def render(ctx: dict) -> None:
         except Exception as exc:  # noqa: BLE001
             st.error(f"No se pudieron guardar los precios: {exc}")
         else:
+            db.log_audit(
+                db.AUDIT_PRICE_CHANGED,
+                "Precios",
+                detalle=f"{n} producto(s) actualizado(s)",
+                usuario_rol=ctx["usuario_rol"],
+                sede=ctx["sede"],
+            )
             st.success(f"Precios guardados para {n} producto(s).")
             st.rerun()

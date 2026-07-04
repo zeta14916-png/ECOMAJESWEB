@@ -1285,3 +1285,200 @@ def payroll_total(date_from=None, date_to=None) -> Decimal:
             cur.execute(sql, params)
             row = cur.fetchone()
     return Decimal(row["total"])
+
+
+# --------------------------------------------------------------------------- #
+# Comentarios (comments) + Auditoría (audit log)
+# --------------------------------------------------------------------------- #
+
+# Comment status keys (stored on comments.estado, CHECK-constrained) + labels.
+COMMENT_PENDIENTE = "pendiente"
+COMMENT_EN_REVISION = "en_revision"
+COMMENT_ATENDIDO = "atendido"
+COMMENT_STATUS_LABELS = {
+    COMMENT_PENDIENTE: "Pendiente",
+    COMMENT_EN_REVISION: "En revisión",
+    COMMENT_ATENDIDO: "Atendido",
+}
+
+# Audit action keys (stored on audit_log.accion) + labels for display.
+AUDIT_LOGIN = "login"
+AUDIT_PRODUCT_CREATED = "producto_creado"
+AUDIT_PRODUCT_UPDATED = "producto_editado"
+AUDIT_PRODUCT_DEACTIVATED = "producto_desactivado"
+AUDIT_PRODUCT_ACTIVATED = "producto_activado"
+AUDIT_PRICE_CHANGED = "precio_actualizado"
+AUDIT_MOVEMENT = "movimiento_inventario"
+AUDIT_SALES_REPORT = "reporte_generado"
+AUDIT_EXPENSE = "gasto_creado"
+AUDIT_PAYROLL = "pago_nomina"
+AUDIT_ACTION_LABELS = {
+    AUDIT_LOGIN: "Inicio de sesión",
+    AUDIT_PRODUCT_CREATED: "Producto creado",
+    AUDIT_PRODUCT_UPDATED: "Producto editado",
+    AUDIT_PRODUCT_DEACTIVATED: "Producto desactivado",
+    AUDIT_PRODUCT_ACTIVATED: "Producto activado",
+    AUDIT_PRICE_CHANGED: "Cambio de precios",
+    AUDIT_MOVEMENT: "Movimiento de inventario",
+    AUDIT_SALES_REPORT: "Reporte de ventas generado",
+    AUDIT_EXPENSE: "Gasto registrado",
+    AUDIT_PAYROLL: "Pago de nómina",
+}
+
+
+def log_audit(
+    accion: str,
+    modulo: str,
+    detalle: str | None = None,
+    usuario_rol: str | None = None,
+    sede: str | None = None,
+) -> None:
+    """Best-effort audit record.
+
+    Records an important action (login, product/price/inventory/expense/payroll
+    changes, report generation) for the GERENCIA-only Auditoría view. This is a
+    non-critical side effect: any failure is swallowed so it can NEVER break the
+    primary action it is attached to.
+    """
+    try:
+        with _get_conn() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO audit_log
+                            (accion, modulo, detalle, usuario_rol, sede)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (accion, modulo, detalle, usuario_rol, sede),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+    except Exception:
+        # Auditing must never interrupt the user's real action.
+        pass
+
+
+def list_audit(
+    accion: str | None = None,
+    modulo: str | None = None,
+    date_from=None,
+    date_to=None,
+    limit: int = 500,
+) -> list[dict]:
+    """Return audit entries (newest first), optionally filtered."""
+    clauses: list[str] = []
+    params: list = []
+    if accion:
+        clauses.append("accion = %s")
+        params.append(accion)
+    if modulo:
+        clauses.append("modulo = %s")
+        params.append(modulo)
+    if date_from is not None:
+        clauses.append("created_at::date >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("created_at::date <= %s")
+        params.append(date_to)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, accion, modulo, detalle, usuario_rol, sede, created_at "
+        f"FROM audit_log {where} ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    params.append(limit)
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def list_audit_modules() -> list[str]:
+    """Distinct module names present in the audit log (for filter options)."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT modulo FROM audit_log ORDER BY modulo"
+            )
+            return [r[0] for r in cur.fetchall()]
+
+
+def add_comment(usuario_rol: str, sede: str | None, comentario: str) -> None:
+    """Create a comment. Any role can call this; starts as 'pendiente'."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO comments (usuario_rol, sede, comentario, estado)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (usuario_rol, sede, comentario, COMMENT_PENDIENTE),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_comments(
+    estado: str | None = None,
+    limit: int = 500,
+) -> list[dict]:
+    """Return comments (newest first), optionally filtered by status."""
+    clauses: list[str] = []
+    params: list = []
+    if estado:
+        clauses.append("estado = %s")
+        params.append(estado)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, usuario_rol, sede, comentario, estado, respuesta, "
+        "respondido_por, respondido_at, created_at "
+        f"FROM comments {where} ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    params.append(limit)
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def respond_comment(comment_id: int, respuesta: str, respondido_por: str) -> None:
+    """Store a GERENCIA response for a comment (records who + when)."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE comments
+                    SET respuesta = %s,
+                        respondido_por = %s,
+                        respondido_at = now()
+                    WHERE id = %s
+                    """,
+                    (respuesta, respondido_por, comment_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def set_comment_status(comment_id: int, estado: str) -> None:
+    """Change a comment's status (GERENCIA only, enforced by the view)."""
+    if estado not in COMMENT_STATUS_LABELS:
+        raise ValueError(f"Estado de comentario inválido: {estado}")
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE comments SET estado = %s WHERE id = %s",
+                    (estado, comment_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise

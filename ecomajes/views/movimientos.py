@@ -107,6 +107,16 @@ def render(ctx: dict) -> None:
         except Exception as exc:
             st.error(f"No se pudo registrar el movimiento: {exc}")
         else:
+            db.log_audit(
+                db.AUDIT_MOVEMENT,
+                "Movimientos",
+                detalle=(
+                    f"{db.MOVEMENT_LABELS.get(tipo, tipo)} · "
+                    f"{product['nombre']} · {float(cantidad)} {product['unidad']}"
+                ),
+                usuario_rol=ctx["usuario_rol"],
+                sede=product["sede"],
+            )
             st.success(
                 f"Movimiento registrado. Nuevo stock de «{product['nombre']}»: "
                 f"{float(new_stock)} {product['unidad']}."

@@ -279,7 +279,21 @@ def _charts(report: dict) -> None:
     _bar(report, "Inventario por categoría", "Categoría", "Stock")
 
 
-def _exports(report: dict) -> None:
+def _log_report(fmt: str, report: dict, usuario_rol: str) -> None:
+    """Best-effort audit entry when a report is actually downloaded."""
+    m = report["meta"]
+    db.log_audit(
+        db.AUDIT_SALES_REPORT,
+        "Reportes",
+        detalle=(
+            f"{fmt} · {m['ubicacion']} · {m['periodo']} · "
+            f"{m['date_from']} → {m['date_to']}"
+        ),
+        usuario_rol=usuario_rol,
+    )
+
+
+def _exports(report: dict, usuario_rol: str) -> None:
     st.subheader("Exportar")
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     col1, col2 = st.columns(2)
@@ -291,6 +305,8 @@ def _exports(report: dict) -> None:
             file_name=f"reporte_ecomajes_{stamp}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            on_click=_log_report,
+            args=("Excel", report, usuario_rol),
         )
     except Exception as exc:  # noqa: BLE001
         col1.error(f"No se pudo generar el Excel: {exc}")
@@ -302,6 +318,8 @@ def _exports(report: dict) -> None:
             file_name=f"reporte_ecomajes_{stamp}.pdf",
             mime="application/pdf",
             use_container_width=True,
+            on_click=_log_report,
+            args=("PDF", report, usuario_rol),
         )
     except Exception as exc:  # noqa: BLE001
         col2.error(f"No se pudo generar el PDF: {exc}")
@@ -338,4 +356,4 @@ def render(ctx: dict) -> None:
         _table_block(report, "Productos menos vendidos")
 
     st.divider()
-    _exports(report)
+    _exports(report, ctx["usuario_rol"])

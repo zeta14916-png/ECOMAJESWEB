@@ -99,8 +99,15 @@ _ADMIN_MATERIAL_SEGUNDO_USO = Group(
 )
 
 _ADMINISTRATIVA_NAV = {
-    SEDE_PRINCIPAL: [_ADMIN_MATERIAL_NUEVO, _ADMIN_MATERIAL_SEGUNDO_USO],
-    SEDE_SUCURSAL: [_ADMIN_MATERIAL_NUEVO],
+    SEDE_PRINCIPAL: [
+        _ADMIN_MATERIAL_NUEVO,
+        _ADMIN_MATERIAL_SEGUNDO_USO,
+        Page("adm_comentarios", "Comentarios"),
+    ],
+    SEDE_SUCURSAL: [
+        _ADMIN_MATERIAL_NUEVO,
+        Page("adm_comentarios", "Comentarios"),
+    ],
 }
 
 # --- GERENCIA -------------------------------------------------------------- #

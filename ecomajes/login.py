@@ -12,7 +12,7 @@ Two steps:
 
 import streamlit as st
 
-from ecomajes import auth, config, session
+from ecomajes import auth, config, db, session
 
 # UI-only session key holding the card the user has highlighted before
 # confirming with "Continuar". This is presentation state, not auth state.
@@ -66,6 +66,12 @@ def render_login() -> None:
     if st.button("Ingresar", type="primary", use_container_width=True):
         if auth.verify_password(role, password):
             session.authenticate(role)
+            db.log_audit(
+                db.AUDIT_LOGIN,
+                "Autenticación",
+                detalle=f"Ingreso como {role}",
+                usuario_rol=role,
+            )
             st.rerun()
         else:
             st.error("Contraseña incorrecta.")

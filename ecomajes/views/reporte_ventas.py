@@ -134,6 +134,16 @@ def _expenses_section(ctx, sede, include_all, date_from, date_to, ref) -> None:
                 except (InvalidOperation, Exception) as exc:  # noqa: BLE001
                     st.error(f"No se pudo guardar el gasto: {exc}")
                 else:
+                    db.log_audit(
+                        db.AUDIT_EXPENSE,
+                        "Reporte de Ventas",
+                        detalle=(
+                            f"{descripcion.strip()} · "
+                            f"$ {float(monto):,.2f} · {ubicacion}"
+                        ),
+                        usuario_rol=ctx["usuario_rol"],
+                        sede=ubicacion,
+                    )
                     st.success("Gasto registrado.")
                     st.rerun()
 

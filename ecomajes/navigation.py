@@ -10,7 +10,9 @@ import streamlit as st
 from ecomajes import config, db, session
 from ecomajes.views import (
     _placeholder,
+    auditoria,
     balance,
+    comentarios,
     gestion_inventario,
     inventario,
     movimientos,
@@ -97,6 +99,28 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # Comentarios — any role can create; GERENCIA responds + changes status.
+    "op_comentarios": {
+        "view": "comentarios",
+        "material_tipo": None,
+        "editable": True,
+    },
+    "adm_comentarios": {
+        "view": "comentarios",
+        "material_tipo": None,
+        "editable": True,
+    },
+    "ger_comentarios": {
+        "view": "comentarios",
+        "material_tipo": None,
+        "editable": True,
+    },
+    # GERENCIA — audit trail (read-only).
+    "ger_auditoria": {
+        "view": "auditoria",
+        "material_tipo": None,
+        "editable": False,
+    },
 }
 
 _VIEWS = {
@@ -109,6 +133,8 @@ _VIEWS = {
     "productos": productos.render,
     "recursos_humanos": recursos_humanos.render,
     "reportes": reportes.render,
+    "comentarios": comentarios.render,
+    "auditoria": auditoria.render,
 }
 
 

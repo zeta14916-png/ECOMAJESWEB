@@ -103,6 +103,13 @@ def _create_form(ctx: dict) -> None:
             except Exception as exc:
                 _handle_error(exc)
             else:
+                db.log_audit(
+                    db.AUDIT_PRODUCT_CREATED,
+                    "Productos",
+                    detalle=f"{descripcion.strip()} ({target_sede})",
+                    usuario_rol=ctx["usuario_rol"],
+                    sede=target_sede,
+                )
                 st.success(f"Producto «{descripcion.strip()}» creado.")
                 st.rerun()
 
@@ -186,6 +193,13 @@ def _edit_form(ctx: dict, products: list[dict]) -> None:
             except Exception as exc:
                 _handle_error(exc)
             else:
+                db.log_audit(
+                    db.AUDIT_PRODUCT_UPDATED,
+                    "Productos",
+                    detalle=f"{descripcion.strip()} (ID {selected_id})",
+                    usuario_rol=ctx["usuario_rol"],
+                    sede=prod["sede"],
+                )
                 st.success("Producto actualizado.")
                 st.rerun()
 
@@ -196,11 +210,31 @@ def _edit_form(ctx: dict, products: list[dict]) -> None:
         if prod["activo"]:
             if st.button("🚫 Desactivar producto", key=f"deact_{selected_id}"):
                 db.set_product_active(selected_id, False)
+                db.log_audit(
+                    db.AUDIT_PRODUCT_DEACTIVATED,
+                    "Productos",
+                    detalle=(
+                        f"{prod['descripcion'] or prod['nombre']} "
+                        f"(ID {selected_id})"
+                    ),
+                    usuario_rol=ctx["usuario_rol"],
+                    sede=prod["sede"],
+                )
                 st.success("Producto desactivado.")
                 st.rerun()
         else:
             if st.button("✅ Activar producto", key=f"act_{selected_id}"):
                 db.set_product_active(selected_id, True)
+                db.log_audit(
+                    db.AUDIT_PRODUCT_ACTIVATED,
+                    "Productos",
+                    detalle=(
+                        f"{prod['descripcion'] or prod['nombre']} "
+                        f"(ID {selected_id})"
+                    ),
+                    usuario_rol=ctx["usuario_rol"],
+                    sede=prod["sede"],
+                )
                 st.success("Producto activado.")
                 st.rerun()
 

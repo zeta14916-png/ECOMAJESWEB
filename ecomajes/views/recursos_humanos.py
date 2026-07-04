@@ -320,6 +320,15 @@ def _payroll_form(ctx: dict, employees: list[dict]) -> None:
                     "_payroll_last_emp",
                 ):
                     st.session_state.pop(_k, None)
+                db.log_audit(
+                    db.AUDIT_PAYROLL,
+                    "Recursos Humanos",
+                    detalle=(
+                        f"{by_id[selected_id]['nombre']} · "
+                        f"$ {pago_final:,.2f}"
+                    ),
+                    usuario_rol=ctx["usuario_rol"],
+                )
                 st.success(f"Pago registrado. Pago final: $ {pago_final:,.2f}")
                 st.rerun()
 
