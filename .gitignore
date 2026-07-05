@@ -41,6 +41,18 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+*.py[cod]
+.pythonlibs/
+.venv/
+venv/
+*.egg-info/
+.env
+
+# Archives / exports (do NOT commit — too large for GitHub)
+*.zip
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
