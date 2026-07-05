@@ -53,6 +53,9 @@ venv/
 # Archives / exports (do NOT commit — too large for GitHub)
 *.zip
 
+# Database data export (business data — keep out of the repo)
+db/full_dump.sql
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 

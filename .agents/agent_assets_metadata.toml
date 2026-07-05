@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "UuD8tuyOWrTYn86OmMjCU"
+uri = "file://db/full_dump.zip"
+type = "unspecified"
+title = "Respaldo completo de la base de datos (estructura + datos) — descomprime para obtener full_dump.sql"
