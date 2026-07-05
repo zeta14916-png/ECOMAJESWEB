@@ -5,4 +5,4 @@ generated = []
 id = "UuD8tuyOWrTYn86OmMjCU"
 uri = "file://db/full_dump.zip"
 type = "unspecified"
-title = "Respaldo actualizado (formato INSERT, compatible con el SQL Editor de Neon)"
+title = "Respaldo limpio (sin \\restrict/\\unrestrict) — listo para el SQL Editor de Neon"
