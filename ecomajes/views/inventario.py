@@ -17,6 +17,10 @@ _ESTADO_BAJO = "Stock bajo"
 _ESTADO_AGOTADO = "Agotado"
 _ESTADOS = [_ESTADO_DISPONIBLE, _ESTADO_BAJO, _ESTADO_AGOTADO]
 
+# Umbrales de color para la vista OPERARIOS (independientes de stock_minimo).
+_OP_VERDE = 20   # stock >= 20 → 🟢
+_OP_AMARILLO = 10  # 10 <= stock < 20 → 🟡  /  stock < 10 → 🔴
+
 
 def _num(value) -> Decimal:
     try:
@@ -33,11 +37,24 @@ def _estado(stock: Decimal, stock_minimo: Decimal) -> str:
     return _ESTADO_DISPONIBLE
 
 
-def _clean_rows(products: list[dict]) -> list[dict]:
+def _estado_operario(stock: Decimal) -> str:
+    """Estado con semáforo fijo para la vista de OPERARIOS."""
+    if stock >= _OP_VERDE:
+        return "🟢 Disponible"
+    if stock >= _OP_AMARILLO:
+        return "🟡 Stock bajo"
+    return "🔴 Stock crítico"
+
+
+def _clean_rows(products: list[dict], operario: bool = False) -> list[dict]:
     """Shape catalog rows for display (Código/Descripción/Categoría/…/Estado)."""
     rows = []
     for p in products:
         stock = _num(p["stock"])
+        if operario:
+            estado = _estado_operario(stock)
+        else:
+            estado = _estado(stock, _num(p.get("stock_minimo")))
         rows.append(
             {
                 "Código": p.get("codigo") or "—",
@@ -45,7 +62,7 @@ def _clean_rows(products: list[dict]) -> list[dict]:
                 "Categoría": p.get("categoria") or "—",
                 "Unidad": p.get("unidad") or "—",
                 "Stock": float(stock),
-                "Estado": _estado(stock, _num(p.get("stock_minimo"))),
+                "Estado": estado,
             }
         )
     return rows
@@ -130,11 +147,13 @@ def render(ctx: dict) -> None:
     with col2:
         estado_sel = st.selectbox("Estado", ["Todos", *_ESTADOS])
 
-    rows = _clean_rows(products)
+    es_operario = ctx.get("usuario_rol") == config.ROLE_OPERARIOS
+    rows = _clean_rows(products, operario=es_operario)
     if categoria_sel != "Todas":
         rows = [r for r in rows if r["Categoría"] == categoria_sel]
     if estado_sel != "Todos":
-        rows = [r for r in rows if r["Estado"] == estado_sel]
+        # Coincidencia parcial para que los emojis del modo operario también filtren.
+        rows = [r for r in rows if estado_sel in r["Estado"]]
 
     if rows:
         st.caption(f"{len(rows)} producto(s)")

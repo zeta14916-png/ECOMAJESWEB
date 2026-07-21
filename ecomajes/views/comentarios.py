@@ -5,6 +5,9 @@ the date, the author's role (the app logs in by role, so "usuario" = role),
 the location/scope it was written under, the text and a status
 (Pendiente / En revisión / Atendido).
 
+OPERARIOS additionally must enter their name (trabajador) since they log in
+without an individual account.
+
 GERENCIA additionally can respond to a comment and change its status. Other
 roles see the read-only history plus the response, if any.
 """
@@ -26,22 +29,40 @@ def _status_label(key: str) -> str:
 
 
 def _new_comment_form(ctx: dict) -> None:
+    es_operario = ctx["usuario_rol"] == config.ROLE_OPERARIOS
     with st.expander("➕ Escribir un comentario", expanded=True):
         with st.form("new_comment_form", clear_on_submit=True):
-            texto = st.text_area(
-                "Comentario",
-                placeholder="Escribe tu comentario, duda o sugerencia…",
+            # OPERARIOS ingresa su nombre porque no tienen cuenta individual.
+            if es_operario:
+                trabajador = st.text_input(
+                    "Tu nombre",
+                    placeholder="Ej: Juan Pérez",
+                    help="Escribe tu nombre completo.",
+                )
+            tipo_label = st.selectbox(
+                "Tipo",
+                ["Comentario", "Sugerencia", "Observación"],
             )
-            submitted = st.form_submit_button("Enviar comentario")
+            texto = st.text_area(
+                tipo_label,
+                placeholder=f"Escribe tu {tipo_label.lower()}…",
+            )
+            submitted = st.form_submit_button("Enviar", use_container_width=True)
+
         if submitted:
-            if not texto.strip():
-                st.error("El comentario no puede estar vacío.")
+            if es_operario and not trabajador.strip():
+                st.error("Debes ingresar tu nombre.")
                 return
+            if not texto.strip():
+                st.error(f"El {tipo_label.lower()} no puede estar vacío.")
+                return
+            comentario_final = f"[{tipo_label}] {texto.strip()}"
             try:
                 db.add_comment(
                     usuario_rol=ctx["usuario_rol"],
                     sede=ctx.get("sede"),
-                    comentario=texto.strip(),
+                    comentario=comentario_final,
+                    trabajador=trabajador.strip() if es_operario else None,
                 )
             except Exception as exc:  # noqa: BLE001
                 st.error(f"No se pudo guardar el comentario: {exc}")
@@ -100,10 +121,11 @@ def _render_comment(c: dict, is_gerencia: bool) -> None:
     emoji = _STATUS_EMOJI.get(c["estado"], "")
     fecha = c["created_at"].strftime("%Y-%m-%d %H:%M")
     ambito = c["sede"] or "—"
+    autor = c.get("trabajador") or c["usuario_rol"]
     with st.container(border=True):
         st.markdown(
             f"{emoji} **{_status_label(c['estado'])}** · "
-            f"🗓️ {fecha} · 👤 {c['usuario_rol']} · 📍 {ambito}"
+            f"🗓️ {fecha} · 👤 {autor} · 📍 {ambito}"
         )
         st.write(c["comentario"])
         if c["respuesta"]:

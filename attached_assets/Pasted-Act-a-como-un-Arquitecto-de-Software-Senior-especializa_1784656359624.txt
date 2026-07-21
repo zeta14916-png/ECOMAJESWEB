@@ -1,0 +1,141 @@
+Actúa como un Arquitecto de Software Senior especializado en Python, Streamlit y desarrollo de ERP empresariales.
+
+Estamos desarrollando ECOMAJES ERP para una empresa dedicada a la venta de metales, perfiles de acero, tubos, planchas y otros materiales metálicos.
+
+NO cambies la estructura existente.
+NO cambies nombres de módulos.
+NO agregues módulos nuevos.
+NO elimines funciones existentes.
+
+Debes desarrollar ÚNICAMENTE la FASE 1 correspondiente al módulo OPERARIO.
+
+==========================
+OBJETIVO
+==========================
+
+El Operario es el usuario más simple del sistema.
+
+No necesita usuario ni contraseña.
+
+Al ingresar únicamente selecciona la sede:
+
+• Sede Principal
+• Sucursal
+
+Después podrá acceder solamente a:
+
+1. Control de Asistencia
+2. Inventario
+3. Comentarios
+
+==========================
+1. CONTROL DE ASISTENCIA
+==========================
+
+Debe permitir:
+
+• Registrar nombre del trabajador.
+• Entrada.
+• Salida.
+• Fecha automática.
+• Hora automática.
+• Sede.
+• Observaciones.
+• Guardar asistencia.
+
+La información deberá quedar registrada para que posteriormente Recursos Humanos pueda consultarla.
+
+==========================
+2. INVENTARIO
+==========================
+
+Debe ser únicamente de consulta.
+
+Permitir:
+
+• Buscar por código.
+• Buscar por nombre.
+• Filtrar por categoría.
+
+Mostrar:
+
+• Código.
+• Descripción.
+• Categoría.
+• Unidad.
+• Stock.
+• Estado.
+
+Colores:
+
+🟢 Stock >=20
+
+🟡 Stock <20
+
+🔴 Stock <10
+
+El Operario NO puede:
+
+• editar productos
+• crear productos
+• eliminar productos
+• modificar stock
+• modificar precios
+
+==========================
+3. COMENTARIOS
+==========================
+
+Permitir:
+
+• escribir comentario
+
+• escribir sugerencia
+
+• escribir observación
+
+Registrar automáticamente:
+
+• trabajador
+
+• sede
+
+• fecha
+
+• hora
+
+Guardar comentario.
+
+==========================
+RESTRICCIONES
+==========================
+
+El Operario NO puede:
+
+❌ registrar ventas
+
+❌ registrar compras
+
+❌ modificar precios
+
+❌ modificar inventario
+
+❌ aprobar reposiciones
+
+❌ acceder a reportes financieros
+
+❌ acceder a configuración
+
+==========================
+IMPORTANTE
+==========================
+
+No desarrolles ningún módulo administrativo.
+
+No desarrolles módulos gerenciales.
+
+No cambies la estructura del proyecto.
+
+Si necesitas modificar archivos existentes, conserva la arquitectura actual.
+
+Entrega siempre archivos completos para reemplazar.

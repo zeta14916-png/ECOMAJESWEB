@@ -67,11 +67,10 @@ class Group:
 
 
 # --- OPERARIOS ------------------------------------------------------------- #
-# Same four pages for either sede.
+# Same pages for either sede.
 _OPERARIOS_NAV: list = [
+    Page("op_asistencia", "Control de Asistencia"),
     Page("op_inventario", "Inventario"),
-    Page("op_alertas", "Alertas"),
-    Page("op_historial", "Historial"),
     Page("op_comentarios", "Comentarios"),
 ]
 

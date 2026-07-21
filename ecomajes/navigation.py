@@ -11,6 +11,7 @@ from ecomajes import config, db, session
 from ecomajes.views import (
     _placeholder,
     alertas,
+    asistencia,
     auditoria,
     balance,
     comentarios,
@@ -32,6 +33,8 @@ from ecomajes.views import (
 # Any page not listed here falls back to the placeholder.
 # --------------------------------------------------------------------------- #
 ROUTES = {
+    # OPERARIOS — control de asistencia.
+    "op_asistencia": {"view": "asistencia", "material_tipo": None, "editable": True},
     # OPERARIOS — read-only inventory for the chosen sede.
     "op_inventario": {"view": "inventario", "material_tipo": None, "editable": False},
     # ÁREA ADMINISTRATIVA — Material Nuevo. (Historial has no dedicated view yet
@@ -177,6 +180,7 @@ ROUTES = {
 }
 
 _VIEWS = {
+    "asistencia": asistencia.render,
     "alertas": alertas.render,
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
