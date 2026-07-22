@@ -8,9 +8,16 @@ left as placeholders until each module is approved.
 
 import streamlit as st
 
-from ecomajes import login, navigation, session
+from ecomajes import login, navigation, session, theme
 
-st.set_page_config(page_title="ECOMAJES ERP", page_icon="🔩", layout="wide")
+st.set_page_config(
+    page_title="ECOMAJES ERP",
+    page_icon="🔩",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+theme.inject_css()
 
 
 def main() -> None:

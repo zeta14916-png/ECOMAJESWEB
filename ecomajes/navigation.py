@@ -216,40 +216,74 @@ def _page_index(nav: list) -> dict:
 
 def _render_sidebar(nav: list) -> None:
     """Render the sidebar: session info, menu (flat + grouped) and logout."""
+    role = session.current_role()
+    sede = session.current_sede()
+
+    _ROLE_ICONS = {
+        config.ROLE_OPERARIOS: "🔧",
+        config.ROLE_ADMINISTRATIVA: "📋",
+        config.ROLE_GERENCIA: "📊",
+    }
+    scope_label = "Ámbito" if role == config.ROLE_GERENCIA else "Sede"
+
     with st.sidebar:
-        st.title("ECOMAJES ERP")
-        st.caption("Acero y Ferretería")
-        st.divider()
-
-        st.markdown(f"**Rol:** {session.current_role()}")
-        scope_label = (
-            "Ámbito"
-            if session.current_role() == config.ROLE_GERENCIA
-            else "Sede"
+        # ── Encabezado ──────────────────────────────────────────────────── #
+        st.markdown(
+            f"""
+            <div style="padding:1rem 0.5rem 0.75rem;">
+              <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.12em;
+                          text-transform:uppercase;color:#64748B;margin-bottom:0.5rem;">
+                ECOMAJES ERP
+              </div>
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <span style="font-size:1.6rem;line-height:1;">
+                  {_ROLE_ICONS.get(role, "🏭")}
+                </span>
+                <div>
+                  <div style="font-size:0.82rem;font-weight:700;color:#FFFFFF;
+                               line-height:1.2;">{role}</div>
+                  <div style="font-size:0.72rem;color:#94A3B8;margin-top:0.15rem;">
+                    {scope_label}: {sede}
+                  </div>
+                </div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        st.markdown(f"**{scope_label}:** {session.current_sede()}")
         st.divider()
 
+        # ── Menú de navegación ───────────────────────────────────────────── #
+        active = session.active_page()
         for item in nav:
             if isinstance(item, config.Group):
                 with st.expander(f"{item.icon} {item.label}", expanded=True):
                     for page in item.pages:
+                        label = (
+                            f"▶ {page.label}" if page.key == active else page.label
+                        )
                         if st.button(
-                            page.label,
+                            label,
                             key=f"nav_{page.key}",
                             use_container_width=True,
                         ):
                             session.set_active_page(page.key)
             else:  # config.Page
+                label = f"▶ {item.label}" if item.key == active else item.label
                 if st.button(
-                    item.label,
+                    label,
                     key=f"nav_{item.key}",
                     use_container_width=True,
                 ):
                     session.set_active_page(item.key)
 
+        # ── Cerrar sesión ────────────────────────────────────────────────── #
         st.divider()
-        if st.button("🚪 Cerrar sesión", use_container_width=True):
+        if st.button(
+            "🚪 Cerrar sesión",
+            key="logout_btn",
+            use_container_width=True,
+        ):
             session.logout()
             st.rerun()
 

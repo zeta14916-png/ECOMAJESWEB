@@ -51,30 +51,54 @@ _SCOPE_META = {
 
 
 def render_login() -> None:
-    st.title("ECOMAJES ERP")
-    st.caption("Sistema de gestión — Acero y Ferretería")
-    st.divider()
+    # ── Centrar el formulario ────────────────────────────────────────────── #
+    _, col, _ = st.columns([1, 1.6, 1])
+    with col:
+        st.markdown(
+            """
+            <div style="text-align:center;padding:2rem 0 1.5rem;">
+              <div style="font-size:2.8rem;margin-bottom:0.5rem;">🔩</div>
+              <h1 style="font-size:2rem;font-weight:800;color:#1A202C;
+                         letter-spacing:-0.02em;margin:0;">ECOMAJES ERP</h1>
+              <p style="color:#718096;font-size:0.95rem;margin:0.4rem 0 0;">
+                Sistema de gestión · Acero y Ferretería
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.subheader("Ingreso")
-
-    role = st.selectbox("Rol", config.ROLES, index=0)
-
-    password = ""
-    if auth.requires_password(role):
-        password = st.text_input("Contraseña", type="password")
-
-    if st.button("Ingresar", type="primary", use_container_width=True):
-        if auth.verify_password(role, password):
-            session.authenticate(role)
-            db.log_audit(
-                db.AUDIT_LOGIN,
-                "Autenticación",
-                detalle=f"Ingreso como {role}",
-                usuario_rol=role,
+        with st.container(border=True):
+            st.markdown(
+                "<p style='font-size:0.75rem;font-weight:700;letter-spacing:0.08em;"
+                "text-transform:uppercase;color:#718096;margin-bottom:0.5rem;'>"
+                "ACCESO AL SISTEMA</p>",
+                unsafe_allow_html=True,
             )
-            st.rerun()
-        else:
-            st.error("Contraseña incorrecta.")
+            role = st.selectbox("Rol", config.ROLES, index=0, label_visibility="collapsed")
+            st.caption(f"Seleccionado: **{role}**")
+
+            password = ""
+            if auth.requires_password(role):
+                password = st.text_input(
+                    "Contraseña",
+                    type="password",
+                    placeholder="Ingresa tu contraseña…",
+                )
+
+            st.write("")
+            if st.button("Ingresar →", type="primary", use_container_width=True):
+                if auth.verify_password(role, password):
+                    session.authenticate(role)
+                    db.log_audit(
+                        db.AUDIT_LOGIN,
+                        "Autenticación",
+                        detalle=f"Ingreso como {role}",
+                        usuario_rol=role,
+                    )
+                    st.rerun()
+                else:
+                    st.error("Contraseña incorrecta.")
 
 
 def _scope_css(selected_meta: dict) -> str:
