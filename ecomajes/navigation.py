@@ -16,7 +16,6 @@ from ecomajes.views import (
     balance,
     comentarios,
     gestion_inventario,
-    importar_compra,
     importar_productos,
     importar_stock,
     inventario,
@@ -91,12 +90,6 @@ ROUTES = {
         "material_tipo": db.TIPO_SEGUNDO_USO,
         "editable": False,
     },
-    # ÁREA ADMINISTRATIVA — control de asistencia.
-    "adm_asistencia": {
-        "view": "asistencia",
-        "material_tipo": None,
-        "editable": True,
-    },
     # ÁREA ADMINISTRATIVA — importers (sede/material chosen inside each view).
     "adm_importar_productos": {
         "view": "importar_productos",
@@ -105,11 +98,6 @@ ROUTES = {
     },
     "adm_importar_stock": {
         "view": "importar_stock",
-        "material_tipo": None,
-        "editable": True,
-    },
-    "adm_importar_compra": {
-        "view": "importar_compra",
         "material_tipo": None,
         "editable": True,
     },
@@ -155,12 +143,6 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
-    # GERENCIA — purchase importer.
-    "ger_importar_compra": {
-        "view": "importar_compra",
-        "material_tipo": None,
-        "editable": True,
-    },
     # GERENCIA — Recursos Humanos (employees + payroll).
     "ger_recursos_humanos": {
         "view": "recursos_humanos",
@@ -202,7 +184,6 @@ _VIEWS = {
     "alertas": alertas.render,
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
-    "importar_compra": importar_compra.render,
     "importar_productos": importar_productos.render,
     "importar_stock": importar_stock.render,
     "movimientos": movimientos.render,

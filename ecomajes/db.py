@@ -53,27 +53,6 @@ TIPO_VENTA_LABELS = {
     VENTA_CORTE_PERSONALIZADO: "Corte personalizado",
 }
 
-# Payment methods (stored on movements.metodo_pago for ventas).
-METODO_EFECTIVO = "efectivo"
-METODO_YAPE = "yape"
-METODO_PLIN = "plin"
-METODO_TRANSFERENCIA = "transferencia"
-METODO_CAJA_CHICA = "caja_chica"
-METODOS_PAGO = [
-    METODO_EFECTIVO,
-    METODO_YAPE,
-    METODO_PLIN,
-    METODO_TRANSFERENCIA,
-    METODO_CAJA_CHICA,
-]
-METODO_PAGO_LABELS = {
-    METODO_EFECTIVO: "Efectivo",
-    METODO_YAPE: "Yape",
-    METODO_PLIN: "Plin",
-    METODO_TRANSFERENCIA: "Transferencia",
-    METODO_CAJA_CHICA: "Caja Chica",
-}
-
 # Movement types that add to stock vs. remove from stock.
 _ADDS_STOCK = {MOVEMENT_ENTRADA}
 _REMOVES_STOCK = {MOVEMENT_SALIDA, MOVEMENT_VENTA}
@@ -1021,7 +1000,6 @@ def register_movement(
     tipo_venta: str | None = None,
     precio_final: Decimal | None = None,
     autorizado_por: str | None = None,
-    metodo_pago: str | None = None,
 ) -> Decimal:
     """Register a movement and update the product stock atomically.
 
@@ -1095,14 +1073,13 @@ def register_movement(
                             precio_unitario = prow[0]
                             precio_total = precio_unitario * cantidad
 
-                stored_metodo_pago = metodo_pago if tipo == MOVEMENT_VENTA else None
                 cur.execute(
                     """
                     INSERT INTO movements
                         (product_id, tipo, cantidad, nota, usuario_rol, sede,
                          precio_unitario, precio_total, tipo_venta,
-                         autorizado_por, metodo_pago)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         autorizado_por)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         product_id,
@@ -1115,7 +1092,6 @@ def register_movement(
                         precio_total,
                         stored_tipo_venta,
                         stored_autorizado,
-                        stored_metodo_pago,
                     ),
                 )
             conn.commit()
@@ -1173,8 +1149,7 @@ def list_sales(
     where = f"WHERE {' AND '.join(clauses)}"
     sql = (
         "SELECT m.id, m.created_at, m.usuario_rol, m.cantidad, "
-        "m.precio_unitario, m.precio_total, m.sede, m.metodo_pago, "
-        "m.tipo_venta, m.autorizado_por, "
+        "m.precio_unitario, m.precio_total, m.sede, "
         "p.nombre AS producto, p.unidad "
         "FROM movements m JOIN products p ON p.id = m.product_id "
         f"{where} ORDER BY m.created_at DESC"
@@ -2301,306 +2276,6 @@ def register_attendance(
         except Exception:
             conn.rollback()
             raise
-
-
-def sales_by_metodo_pago(
-    sede: str | None = None,
-    include_all_sedes: bool = False,
-    date_from=None,
-    date_to=None,
-) -> list[dict]:
-    """Sum precio_total grouped by metodo_pago for the given scope."""
-    clauses = ["m.tipo = %s"]
-    params: list = [MOVEMENT_VENTA]
-    extra_clauses, extra_params = _date_scope_clauses(
-        sede, include_all_sedes, date_from, date_to, "m.sede", "m.created_at::date"
-    )
-    clauses.extend(extra_clauses)
-    params.extend(extra_params)
-    where = f"WHERE {' AND '.join(clauses)}"
-    sql = (
-        f"SELECT COALESCE(metodo_pago, 'efectivo') AS metodo_pago, "
-        f"COUNT(*) AS num_ventas, COALESCE(SUM(precio_total), 0) AS total "
-        f"FROM movements m {where} "
-        "GROUP BY COALESCE(metodo_pago, 'efectivo') ORDER BY total DESC"
-    )
-    with _get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
-
-
-# --------------------------------------------------------------------------- #
-# Ingresos adicionales
-# --------------------------------------------------------------------------- #
-
-def add_ingreso_adicional(
-    fecha,
-    descripcion: str,
-    monto: Decimal,
-    sede: str,
-    usuario_rol: str | None,
-) -> None:
-    """Record an additional income entry for a location."""
-    with _get_conn() as conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO ingresos_adicionales
-                        (fecha, descripcion, monto, sede, usuario_rol)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (fecha, descripcion, monto, sede, usuario_rol),
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-def list_ingresos_adicionales(
-    sede: str | None = None,
-    include_all_sedes: bool = False,
-    date_from=None,
-    date_to=None,
-) -> list[dict]:
-    """Return additional income entries filtered by location and date range."""
-    clauses, params = _date_scope_clauses(
-        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
-    )
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    sql = (
-        "SELECT id, fecha, descripcion, monto, sede, usuario_rol, created_at "
-        f"FROM ingresos_adicionales {where} ORDER BY fecha DESC, id DESC"
-    )
-    with _get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
-
-
-# --------------------------------------------------------------------------- #
-# Deudores
-# --------------------------------------------------------------------------- #
-
-DEUDOR_PENDIENTE = "pendiente"
-DEUDOR_PAGADO = "pagado"
-DEUDOR_STATUS_LABELS = {
-    DEUDOR_PENDIENTE: "Pendiente",
-    DEUDOR_PAGADO: "Pagado",
-}
-
-
-def add_deudor(
-    nombre: str,
-    descripcion: str,
-    monto: Decimal,
-    sede: str,
-    usuario_rol: str | None,
-) -> None:
-    """Record a debtor entry."""
-    with _get_conn() as conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO deudores
-                        (nombre, descripcion, monto, sede, estado, usuario_rol)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (nombre, descripcion, monto, sede, DEUDOR_PENDIENTE, usuario_rol),
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-def set_deudor_estado(deudor_id: int, estado: str) -> None:
-    """Update debtor status (pendiente / pagado)."""
-    with _get_conn() as conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE deudores SET estado = %s WHERE id = %s",
-                    (estado, deudor_id),
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-def list_deudores(
-    sede: str | None = None,
-    include_all_sedes: bool = False,
-    estado: str | None = None,
-) -> list[dict]:
-    """Return debtor records filtered by location and optional status."""
-    clauses: list[str] = []
-    params: list = []
-    if not include_all_sedes and sede is not None:
-        clauses.append("sede = %s")
-        params.append(sede)
-    if estado:
-        clauses.append("estado = %s")
-        params.append(estado)
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    sql = (
-        "SELECT id, nombre, descripcion, monto, sede, estado, "
-        "usuario_rol, created_at "
-        f"FROM deudores {where} ORDER BY created_at DESC, id DESC"
-    )
-    with _get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
-
-
-# --------------------------------------------------------------------------- #
-# Entrega de sobres
-# --------------------------------------------------------------------------- #
-
-def add_entrega_sobre(
-    fecha,
-    destinatario: str,
-    descripcion: str,
-    monto: Decimal,
-    sede: str,
-    usuario_rol: str | None,
-) -> None:
-    """Record an envelope delivery."""
-    with _get_conn() as conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO entrega_sobres
-                        (fecha, destinatario, descripcion, monto, sede, usuario_rol)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (fecha, destinatario, descripcion, monto, sede, usuario_rol),
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-def list_entrega_sobres(
-    sede: str | None = None,
-    include_all_sedes: bool = False,
-    date_from=None,
-    date_to=None,
-) -> list[dict]:
-    """Return envelope delivery records filtered by location and date range."""
-    clauses, params = _date_scope_clauses(
-        sede, include_all_sedes, date_from, date_to, "sede", "fecha"
-    )
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    sql = (
-        "SELECT id, fecha, destinatario, descripcion, monto, sede, "
-        "usuario_rol, created_at "
-        f"FROM entrega_sobres {where} ORDER BY fecha DESC, id DESC"
-    )
-    with _get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
-
-
-# --------------------------------------------------------------------------- #
-# Compras (Importar Compra de Productos)
-# --------------------------------------------------------------------------- #
-
-def register_purchase_import(rows: list[dict], sede: str, usuario_rol: str | None) -> dict:
-    """Bulk-insert purchase records from the Excel importer.
-
-    Each row must have: codigo (str), descripcion (str), cantidad (Decimal),
-    costo_unitario (Decimal), proveedor (str | None), fecha (date | None).
-    Returns a summary dict with inserted / errors counts.
-    """
-    inserted = 0
-    errors = 0
-    error_details: list[str] = []
-
-    with _get_conn() as conn:
-        try:
-            with conn.cursor() as cur:
-                for row in rows:
-                    sp = f"sp_{inserted}_{errors}"
-                    try:
-                        cur.execute(f"SAVEPOINT {sp}")
-                        costo_total = (
-                            (row["costo_unitario"] or Decimal("0"))
-                            * (row["cantidad"] or Decimal("1"))
-                        )
-                        cur.execute(
-                            """
-                            INSERT INTO compras
-                                (codigo, descripcion, cantidad, costo_unitario,
-                                 costo_total, proveedor, fecha, sede, usuario_rol)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """,
-                            (
-                                row.get("codigo") or None,
-                                row.get("descripcion") or "",
-                                row.get("cantidad") or Decimal("0"),
-                                row.get("costo_unitario") or Decimal("0"),
-                                costo_total,
-                                row.get("proveedor") or None,
-                                row.get("fecha") or None,
-                                sede,
-                                usuario_rol,
-                            ),
-                        )
-                        cur.execute(f"RELEASE SAVEPOINT {sp}")
-                        inserted += 1
-                    except Exception as exc:  # noqa: BLE001
-                        cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                        errors += 1
-                        error_details.append(
-                            f"{row.get('codigo', '?')}: {exc}"
-                        )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-    return {"inserted": inserted, "errors": errors, "error_details": error_details}
-
-
-def list_purchases(
-    sede: str | None = None,
-    include_all_sedes: bool = False,
-    date_from=None,
-    date_to=None,
-    limit: int = 500,
-) -> list[dict]:
-    """Return purchase records (newest first), optionally filtered."""
-    clauses: list[str] = []
-    params: list = []
-    if not include_all_sedes and sede is not None:
-        clauses.append("sede = %s")
-        params.append(sede)
-    if date_from is not None:
-        clauses.append("fecha >= %s")
-        params.append(date_from)
-    if date_to is not None:
-        clauses.append("fecha <= %s")
-        params.append(date_to)
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    sql = (
-        "SELECT id, codigo, descripcion, cantidad, costo_unitario, costo_total, "
-        "proveedor, fecha, sede, usuario_rol, created_at "
-        f"FROM compras {where} ORDER BY created_at DESC, id DESC LIMIT %s"
-    )
-    params.append(limit)
-    with _get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
 
 
 def list_attendance(

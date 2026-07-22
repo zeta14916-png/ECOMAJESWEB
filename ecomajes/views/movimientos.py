@@ -45,7 +45,6 @@ _INPUT_KEYS = (
     "mov_precio_ctx",
     "mov_autorizado",
     "mov_observacion",
-    "mov_metodo_pago",
 )
 
 
@@ -123,7 +122,6 @@ def _register(
     tipo_venta: str | None = None,
     precio_final: Decimal | None = None,
     autorizado_por: str | None = None,
-    metodo_pago: str | None = None,
 ) -> None:
     """Perform the DB write, audit log, flash message and rerun."""
     try:
@@ -137,7 +135,6 @@ def _register(
             tipo_venta=tipo_venta,
             precio_final=precio_final,
             autorizado_por=autorizado_por,
-            metodo_pago=metodo_pago,
         )
     except db.StockError as exc:
         st.error(str(exc))
@@ -195,14 +192,6 @@ def _render_venta(ctx: dict, product: dict) -> None:
     )
     cantidad_dec = Decimal(str(cantidad))
 
-    # Método de pago — shown for all sale types.
-    metodo_pago = st.selectbox(
-        "Método de pago",
-        db.METODOS_PAGO,
-        format_func=lambda m: db.METODO_PAGO_LABELS[m],
-        key="mov_metodo_pago",
-    )
-
     if tipo_venta not in _SPECIAL_VENTA:
         # Unit sale — keep the original automatic pricing (precio from prices).
         nota = st.text_input("Nota (opcional)", key="mov_nota_unidad")
@@ -211,7 +200,6 @@ def _render_venta(ctx: dict, product: dict) -> None:
                 ctx, product, db.MOVEMENT_VENTA, cantidad_dec,
                 nota=nota.strip() or None,
                 tipo_venta=db.VENTA_UNIDAD,
-                metodo_pago=metodo_pago,
             )
         return
 
@@ -256,7 +244,6 @@ def _render_venta(ctx: dict, product: dict) -> None:
             tipo_venta=tipo_venta,
             precio_final=Decimal(str(precio_final)),
             autorizado_por=autorizado.strip() or None,
-            metodo_pago=metodo_pago,
         )
 
 
