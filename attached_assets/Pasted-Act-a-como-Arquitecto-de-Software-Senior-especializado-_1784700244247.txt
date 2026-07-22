@@ -1,0 +1,275 @@
+Actúa como Arquitecto de Software Senior especializado en ERP empresariales.
+
+Estamos desarrollando ECOMAJES ERP para una empresa dedicada a la comercialización de metales.
+
+NO modifiques la estructura existente.
+
+No cambies nombres.
+
+No agregues módulos nuevos.
+
+Desarrolla ÚNICAMENTE la FASE 2.
+
+===================================
+
+ÁREA ADMINISTRATIVA
+
+===================================
+
+Requiere:
+
+Usuario
+
+Contraseña
+
+Seleccionar:
+
+• Sede Principal
+
+• Sucursal
+
+===================================
+
+SEDE PRINCIPAL
+
+===================================
+
+CONTROL DE ASISTENCIA
+
+Registrar:
+
+• entrada
+
+• salida
+
+• trabajador
+
+• fecha
+
+• hora
+
+• observaciones
+
+Consultar registros.
+
+===================================
+
+MATERIAL NUEVO
+
+===================================
+
+INVENTARIO
+
+Permitir:
+
+Buscar
+
+Consultar stock
+
+Consultar alertas
+
+Solicitar reposición.
+
+No modificar precios.
+
+-----------------------------------
+
+REGISTRO DE MOVIMIENTO
+
+-----------------------------------
+
+Registrar:
+
+Venta normal.
+
+Venta por corte.
+
+Entradas.
+
+Salidas.
+
+Ajustes autorizados.
+
+Guardar:
+
+usuario
+
+fecha
+
+hora
+
+sede
+
+cantidad
+
+precio
+
+método de pago
+
+observaciones
+
+Cada venta debe:
+
+descontar automáticamente el inventario.
+
+-----------------------------------
+
+REPORTE DE VENTAS
+
+-----------------------------------
+
+Actualizar automáticamente:
+
+Productos vendidos.
+
+Cantidades.
+
+Totales.
+
+Efectivo.
+
+Yape.
+
+Plin.
+
+Transferencia.
+
+Caja Chica.
+
+Ingresos adicionales.
+
+Gastos.
+
+Deudores.
+
+Entrega de sobres.
+
+Observaciones.
+
+Resumen.
+
+-----------------------------------
+
+GESTIÓN DE INVENTARIO
+
+-----------------------------------
+
+Registrar productos.
+
+Editar información.
+
+Activar productos.
+
+Desactivar productos.
+
+Corregir datos.
+
+Consultar movimientos.
+
+Consultar stock crítico.
+
+Gestionar reposiciones.
+
+===================================
+
+MATERIAL SEGUNDO USO
+
+===================================
+
+Debe tener exactamente la misma estructura del Material Nuevo.
+
+===================================
+
+IMPORTACIONES
+
+===================================
+
+Importar Productos.
+
+Importar Stock.
+
+Importar Compra de Productos.
+
+Cada uno debe permitir:
+
+Descargar plantilla.
+
+Subir plantilla.
+
+Validar información.
+
+Registrar datos.
+
+La importación de productos NO modifica precios.
+
+===================================
+
+SUCURSAL
+
+===================================
+
+La Sucursal NO trabaja con Material Segundo Uso.
+
+Debe contener:
+
+Control de Asistencia.
+
+Material Nuevo.
+
+Importaciones.
+
+===================================
+
+REPOSICIONES
+
+===================================
+
+Las solicitudes nacen únicamente desde Inventario.
+
+Registrar:
+
+Producto.
+
+Cantidad.
+
+Stock actual.
+
+Motivo.
+
+Usuario.
+
+Fecha.
+
+Hora.
+
+Estado.
+
+Estados:
+
+Pendiente.
+
+Aprobada.
+
+Atendida.
+
+Rechazada.
+
+===================================
+
+RESTRICCIONES
+
+===================================
+
+NO modificar precios.
+
+NO aprobar reposiciones.
+
+NO administrar usuarios.
+
+NO administrar configuración.
+
+NO eliminar auditoría.
+
+No cambiar arquitectura.
+
+Entregar archivos completos.
