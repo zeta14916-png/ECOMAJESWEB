@@ -2002,17 +2002,26 @@ def list_audit_modules() -> list[str]:
             return [r[0] for r in cur.fetchall()]
 
 
-def add_comment(usuario_rol: str, sede: str | None, comentario: str) -> None:
-    """Create a comment. Any role can call this; starts as 'pendiente'."""
+def add_comment(
+    usuario_rol: str,
+    sede: str | None,
+    comentario: str,
+    trabajador: str | None = None,
+) -> None:
+    """Create a comment. Any role can call this; starts as 'pendiente'.
+
+    ``trabajador`` stores the worker's name when the author is OPERARIOS
+    (who log in without an individual account).
+    """
     with _get_conn() as conn:
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO comments (usuario_rol, sede, comentario, estado)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO comments (usuario_rol, sede, comentario, estado, trabajador)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (usuario_rol, sede, comentario, COMMENT_PENDIENTE),
+                    (usuario_rol, sede, comentario, COMMENT_PENDIENTE, trabajador),
                 )
             conn.commit()
         except Exception:
@@ -2033,7 +2042,7 @@ def list_comments(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
         "SELECT id, usuario_rol, sede, comentario, estado, respuesta, "
-        "respondido_por, respondido_at, created_at "
+        "respondido_por, respondido_at, trabajador, created_at "
         f"FROM comments {where} ORDER BY created_at DESC, id DESC LIMIT %s"
     )
     params.append(limit)
@@ -2227,3 +2236,78 @@ def open_replenishment_product_ids(
                 params,
             )
             return {r[0] for r in cur.fetchall()}
+
+
+# --------------------------------------------------------------------------- #
+# Attendance (Control de Asistencia — OPERARIOS)
+# --------------------------------------------------------------------------- #
+
+ATTENDANCE_ENTRADA = "entrada"
+ATTENDANCE_SALIDA = "salida"
+ATTENDANCE_TIPO_LABELS = {
+    ATTENDANCE_ENTRADA: "Entrada",
+    ATTENDANCE_SALIDA: "Salida",
+}
+
+
+def register_attendance(
+    *,
+    trabajador: str,
+    tipo: str,
+    fecha,
+    hora,
+    sede: str,
+    observaciones: str | None = None,
+    usuario_rol: str | None = None,
+) -> None:
+    """Register an attendance record (entrada or salida) for a worker."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO attendance
+                        (trabajador, tipo, fecha, hora, sede, observaciones, usuario_rol)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (trabajador, tipo, fecha, hora, sede, observaciones, usuario_rol),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def list_attendance(
+    sede: str | None = None,
+    trabajador: str | None = None,
+    date_from=None,
+    date_to=None,
+    limit: int = 200,
+) -> list[dict]:
+    """Return attendance records (newest first), optionally filtered."""
+    clauses: list[str] = []
+    params: list = []
+    if sede is not None:
+        clauses.append("sede = %s")
+        params.append(sede)
+    if trabajador:
+        clauses.append("trabajador ILIKE %s")
+        params.append(f"%{trabajador}%")
+    if date_from is not None:
+        clauses.append("fecha >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("fecha <= %s")
+        params.append(date_to)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT id, trabajador, tipo, fecha, hora, sede, observaciones, "
+        f"usuario_rol, created_at FROM attendance {where} "
+        "ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    params.append(limit)
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
