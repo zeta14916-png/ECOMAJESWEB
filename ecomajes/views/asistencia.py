@@ -58,8 +58,8 @@ def render(ctx: dict) -> None:
                     observaciones=observaciones.strip() or None,
                     usuario_rol=ctx["usuario_rol"],
                 )
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"No se pudo guardar la asistencia: {exc}")
+            except Exception:  # noqa: BLE001
+                st.error("No se pudo registrar la asistencia. Inténtalo nuevamente.")
             else:
                 tipo_label = "Entrada" if tipo == TIPO_ENTRADA else "Salida"
                 st.success(

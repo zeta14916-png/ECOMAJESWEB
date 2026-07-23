@@ -143,6 +143,22 @@ def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
                 )
                 """
             )
+            # Attendance records (Control de Asistencia — OPERARIOS).
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    trabajador TEXT NOT NULL,
+                    tipo TEXT NOT NULL,
+                    fecha DATE NOT NULL,
+                    hora TIME NOT NULL,
+                    sede TEXT NOT NULL,
+                    observaciones TEXT,
+                    usuario_rol TEXT,
+                    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+                )
+                """
+            )
         conn.commit()
     except Exception:
         conn.rollback()
