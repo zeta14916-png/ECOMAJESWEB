@@ -137,8 +137,24 @@ _GERENCIA_IMPORTAR = Group(
     ),
 )
 
+# Ventas group — period reports + historial + detalle general.
+_GERENCIA_VENTAS = Group(
+    label="Ventas",
+    icon="💰",
+    pages=(
+        Page("ger_ventas_diario", "Reporte Diario"),
+        Page("ger_ventas_semanal", "Reporte Semanal"),
+        Page("ger_ventas_mensual", "Reporte Mensual"),
+        Page("ger_ventas_anual", "Reporte Anual"),
+        Page("ger_ventas_historial", "Historial de Ventas"),
+        Page("ger_ventas_detalle", "Detalle General de Ventas"),
+    ),
+)
+
 # Same modules regardless of the chosen sede scope (incl. Empresa Completa).
 _GERENCIA_NAV: list = [
+    Page("ger_panel_principal", "Panel Principal"),
+    _GERENCIA_VENTAS,
     Page("ger_productos", "Productos"),
     _GERENCIA_IMPORTAR,
     Page("ger_precios", "Precios"),

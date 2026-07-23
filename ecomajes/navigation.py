@@ -21,12 +21,14 @@ from ecomajes.views import (
     importar_stock,
     inventario,
     movimientos,
+    panel_principal,
     precios,
     solicitudes_reposicion,
     productos,
     recursos_humanos,
     reporte_ventas,
     reportes,
+    ventas_gerencia,
 )
 
 # --------------------------------------------------------------------------- #
@@ -106,6 +108,43 @@ ROUTES = {
         "view": "importar_compra",
         "material_tipo": None,
         "editable": True,
+    },
+    # GERENCIA — Panel Principal (dashboard ejecutivo).
+    "ger_panel_principal": {
+        "view": "panel_principal",
+        "material_tipo": None,
+        "editable": False,
+    },
+    # GERENCIA — Ventas: reportes por periodo.
+    "ger_ventas_diario": {
+        "view": "ventas_diario",
+        "material_tipo": None,
+        "editable": False,
+    },
+    "ger_ventas_semanal": {
+        "view": "ventas_semanal",
+        "material_tipo": None,
+        "editable": False,
+    },
+    "ger_ventas_mensual": {
+        "view": "ventas_mensual",
+        "material_tipo": None,
+        "editable": False,
+    },
+    "ger_ventas_anual": {
+        "view": "ventas_anual",
+        "material_tipo": None,
+        "editable": False,
+    },
+    "ger_ventas_historial": {
+        "view": "ventas_historial",
+        "material_tipo": None,
+        "editable": False,
+    },
+    "ger_ventas_detalle": {
+        "view": "ventas_detalle",
+        "material_tipo": None,
+        "editable": False,
     },
     # GERENCIA — consolidated inventory overview (combined across sedes).
     "ger_gestion_inventario": {
@@ -200,6 +239,7 @@ _VIEWS = {
     "importar_productos": importar_productos.render,
     "importar_stock": importar_stock.render,
     "movimientos": movimientos.render,
+    "panel_principal": panel_principal.render,
     "precios": precios.render,
     "reporte_ventas": reporte_ventas.render,
     "solicitudes_reposicion": solicitudes_reposicion.render,
@@ -209,6 +249,12 @@ _VIEWS = {
     "reportes": reportes.render,
     "comentarios": comentarios.render,
     "auditoria": auditoria.render,
+    "ventas_diario": ventas_gerencia.render_diario,
+    "ventas_semanal": ventas_gerencia.render_semanal,
+    "ventas_mensual": ventas_gerencia.render_mensual,
+    "ventas_anual": ventas_gerencia.render_anual,
+    "ventas_historial": ventas_gerencia.render_historial,
+    "ventas_detalle": ventas_gerencia.render_detalle,
 }
 
 
