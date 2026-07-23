@@ -1,0 +1,511 @@
+Actúa como desarrollador senior experto en Python, Streamlit y sistemas ERP.
+
+Estamos desarrollando ECOMAJES ERP para una empresa dedicada a la venta y control de metales.
+
+La FASE 2 - PARTE 1 ya fue desarrollada.
+
+NO vuelvas a modificar lo ya terminado:
+
+- Acceso del Área Administrativa.
+- Selección de sede.
+- Control de Asistencia.
+- Material Nuevo de Sede Principal.
+- Inventario.
+- Registro de Movimiento.
+- Reporte de Ventas.
+- Gestión de Inventario.
+- Reposición integrada en Inventario.
+- Actualización de stock mediante Excel.
+
+Trabaja únicamente desde donde terminó la Parte 1.
+
+==================================================
+REGLAS IMPORTANTES
+==================================================
+
+Antes de programar, revisa el proyecto existente.
+
+Si algo ya existe:
+
+- No lo elimines.
+- No lo reemplaces completamente.
+- No cambies su nombre.
+- No cambies la navegación.
+- No cambies permisos.
+- No modifiques módulos de Operario.
+- No modifiques lo ya terminado en la Parte 1.
+- Completa únicamente lo que falte.
+- Corrige solo lo necesario.
+
+Mantén exactamente la arquitectura actual.
+
+==================================================
+ESTRUCTURA OFICIAL DEL ÁREA ADMINISTRATIVA
+==================================================
+
+ÁREA ADMINISTRATIVA
+│
+├── Inicio de sesión
+│
+├── Selección de sede
+│   ├── Sede Principal
+│   └── Sucursal
+│
+├── SEDE PRINCIPAL
+│   ├── Control de Asistencia
+│   ├── Material Nuevo
+│   ├── Material Segundo Uso
+│   │   ├── Inventario
+│   │   ├── Registro de Movimiento
+│   │   ├── Reporte de Ventas
+│   │   └── Gestión de Inventario
+│   └── Importaciones
+│       ├── Importar Productos
+│       ├── Importar Stock
+│       └── Importar Compra de Productos
+│
+└── SUCURSAL
+    ├── Control de Asistencia
+    ├── Material Nuevo
+    │   ├── Inventario
+    │   ├── Registro de Movimiento
+    │   ├── Reporte de Ventas
+    │   └── Gestión de Inventario
+    └── Importaciones
+        ├── Importar Productos
+        ├── Importar Stock
+        └── Importar Compra de Productos
+
+IMPORTANTE:
+
+- Sede Principal trabaja con Material Nuevo y Material Segundo Uso.
+- Sucursal trabaja únicamente con Material Nuevo.
+- No crear Material Segundo Uso en Sucursal.
+
+==================================================
+1. MATERIAL SEGUNDO USO
+==================================================
+
+Material Segundo Uso debe tener la misma estructura funcional de Material Nuevo.
+
+Debe incluir:
+
+1. Inventario.
+2. Registro de Movimiento.
+3. Reporte de Ventas.
+4. Gestión de Inventario.
+
+La diferencia es que solo debe mostrar y trabajar con productos clasificados como Material Segundo Uso.
+
+--------------------------------------------------
+1.1 INVENTARIO
+--------------------------------------------------
+
+Debe permitir:
+
+- Buscar por código.
+- Buscar por nombre.
+- Filtrar por categoría.
+- Mostrar código.
+- Mostrar descripción.
+- Mostrar categoría.
+- Mostrar unidad.
+- Mostrar precio.
+- Mostrar stock.
+- Mostrar estado.
+
+Estados del stock:
+
+- Stock menor de 10:
+  texto "Stock crítico" y color rojo.
+
+- Stock entre 10 y 19:
+  texto "Stock bajo" y color amarillo.
+
+- Stock igual o mayor de 20:
+  texto "Disponible" y color verde.
+
+Debe mostrarse siempre texto y color.
+
+--------------------------------------------------
+REPOSICIÓN DENTRO DEL INVENTARIO
+--------------------------------------------------
+
+La reposición no debe ser una pestaña independiente.
+
+En la misma tabla del Inventario debe existir una columna llamada:
+
+"Reposición"
+
+Debe colocarse al lado de Stock o Estado.
+
+Cuando el producto tenga Stock crítico o Stock bajo:
+
+- Mostrar botón "Reposición".
+- El botón debe estar en la misma fila del producto.
+
+Al presionarlo, abrir un formulario con:
+
+- Código.
+- Producto.
+- Stock actual.
+- Cantidad solicitada.
+- Motivo.
+- Usuario.
+- Sede.
+- Fecha automática.
+- Hora automática.
+- Botón "Enviar solicitud".
+
+Validaciones:
+
+- Cantidad mayor que cero.
+- Solo valores numéricos.
+- No permitir campos vacíos.
+- Advertir si ya existe una solicitud pendiente del mismo producto y sede.
+
+Al guardar:
+
+- Estado inicial: Pendiente.
+- Registrar producto.
+- Registrar código.
+- Registrar stock actual.
+- Registrar cantidad solicitada.
+- Registrar motivo.
+- Registrar usuario.
+- Registrar sede.
+- Registrar fecha y hora.
+- Enviar la solicitud a Gerencia.
+
+Área Administrativa no puede aprobar ni rechazar la reposición.
+
+Cuando Gerencia la apruebe:
+
+- Sumar automáticamente la cantidad aprobada al stock.
+- Registrar stock anterior.
+- Registrar stock nuevo.
+- Registrar cantidad agregada.
+- Registrar usuario que aprobó.
+- Registrar sede, fecha y hora.
+- Guardar el movimiento para auditoría.
+- Evitar que una misma reposición aumente el stock dos veces.
+
+--------------------------------------------------
+1.2 REGISTRO DE MOVIMIENTO
+--------------------------------------------------
+
+Debe permitir:
+
+- Venta normal.
+- Venta por corte.
+- Entrada.
+- Salida.
+- Ajustes autorizados.
+
+Cada movimiento debe guardar:
+
+- Producto.
+- Código.
+- Cantidad.
+- Precio unitario.
+- Total.
+- Usuario.
+- Fecha.
+- Hora.
+- Sede.
+- Justificación cuando corresponda.
+
+Para las ventas debe ser obligatorio seleccionar:
+
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+No permitir guardar una venta sin método de pago.
+
+Cada venta debe:
+
+- Descontar automáticamente el stock.
+- Guardar el método de pago.
+- Actualizar el Reporte de Ventas.
+- Mantener trazabilidad del usuario, sede, fecha y hora.
+
+--------------------------------------------------
+1.3 REPORTE DE VENTAS
+--------------------------------------------------
+
+Debe mostrar automáticamente:
+
+- Productos vendidos.
+- Cantidades vendidas.
+- Total vendido.
+
+Separar los totales por:
+
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+También debe incluir:
+
+- Caja Chica.
+- Ingresos adicionales.
+- Gastos.
+- Deudores.
+- Entrega de sobres.
+- Observaciones.
+- Resumen final.
+
+Caja Chica debe registrar:
+
+- Monto base.
+- Dinero contado.
+- Diferencia.
+- Observación.
+- Usuario.
+- Fecha.
+
+Caja Chica es un fondo fijo y no debe considerarse ingreso.
+
+--------------------------------------------------
+1.4 GESTIÓN DE INVENTARIO
+--------------------------------------------------
+
+Debe permitir:
+
+- Registrar productos de segundo uso.
+- Editar información.
+- Corregir datos.
+- Activar productos.
+- Desactivar productos.
+- Consultar movimientos.
+- Revisar stock crítico.
+- Consultar solicitudes de reposición.
+- Ver estado de las solicitudes.
+- Descargar plantilla Excel de stock.
+- Subir plantilla Excel para actualizar stock.
+
+La plantilla Excel debe:
+
+- Incluir código, descripción, categoría, unidad, precio, stock actual y stock nuevo.
+- Permitir modificar únicamente Stock nuevo.
+- No modificar precios.
+- No crear productos nuevos.
+- Validar códigos y cantidades.
+- Registrar usuario, sede, fecha y hora.
+- Guardar cada cambio en auditoría.
+
+==================================================
+2. IMPORTACIONES
+==================================================
+
+Crear o completar:
+
+1. Importar Productos.
+2. Importar Stock.
+3. Importar Compra de Productos.
+
+--------------------------------------------------
+2.1 IMPORTAR PRODUCTOS
+--------------------------------------------------
+
+Debe permitir:
+
+- Descargar plantilla Excel.
+- Completar plantilla.
+- Subir archivo.
+- Validar registros.
+- Incorporar productos válidos.
+
+IMPORTANTE:
+
+- No modificar precios.
+- No duplicar códigos.
+- Mostrar errores antes de guardar.
+
+--------------------------------------------------
+2.2 IMPORTAR STOCK
+--------------------------------------------------
+
+Debe permitir:
+
+- Descargar plantilla Excel.
+- Mostrar productos existentes.
+- Ingresar nuevas cantidades.
+- Subir archivo.
+- Validar códigos.
+- Validar que el stock sea numérico y no negativo.
+- Mostrar resumen de cambios.
+- Actualizar existencias.
+- Registrar usuario, sede, fecha y hora.
+- Guardar movimientos para auditoría.
+
+--------------------------------------------------
+2.3 IMPORTAR COMPRA DE PRODUCTOS
+--------------------------------------------------
+
+Debe permitir:
+
+- Descargar plantilla Excel.
+- Registrar proveedor.
+- Registrar producto.
+- Registrar código.
+- Registrar cantidad.
+- Registrar costo.
+- Registrar fecha.
+- Subir archivo.
+- Validar datos.
+- Aumentar automáticamente el inventario.
+- Registrar el usuario responsable.
+- Guardar el movimiento para auditoría.
+
+==================================================
+3. SUCURSAL
+==================================================
+
+La Sucursal debe contener únicamente:
+
+- Control de Asistencia.
+- Material Nuevo.
+- Importaciones.
+
+No debe tener Material Segundo Uso.
+
+--------------------------------------------------
+3.1 MATERIAL NUEVO DE SUCURSAL
+--------------------------------------------------
+
+Debe tener:
+
+- Inventario.
+- Registro de Movimiento.
+- Reporte de Ventas.
+- Gestión de Inventario.
+
+Debe utilizar la misma lógica ya desarrollada en Material Nuevo de Sede Principal, pero mostrando únicamente información de la Sucursal.
+
+En Inventario de Sucursal:
+
+- Buscar por código, nombre y categoría.
+- Mostrar stock y estado.
+- Mostrar colores:
+  rojo, amarillo y verde.
+- Mostrar columna Reposición junto al Stock o Estado.
+- Pedir cantidad solicitada y motivo.
+- Guardar estado Pendiente.
+- Registrar usuario, sede, fecha y hora.
+- Enviar la solicitud a Gerencia.
+
+En Registro de Movimiento:
+
+- Permitir venta normal y venta por corte.
+- Exigir método de pago:
+  Efectivo, Yape, Plin o Transferencia.
+- Descontar stock automáticamente.
+
+En Reporte de Ventas:
+
+- Separar totales por método de pago.
+- Incluir Caja Chica.
+- Incluir ingresos adicionales.
+- Incluir gastos.
+- Incluir deudores.
+- Incluir entrega de sobres.
+- Incluir observaciones.
+- Incluir resumen final.
+
+En Gestión de Inventario:
+
+- Gestionar productos de la Sucursal.
+- Consultar movimientos.
+- Ver stock crítico.
+- Consultar reposiciones.
+- Actualizar stock mediante Excel.
+
+--------------------------------------------------
+3.2 IMPORTACIONES DE SUCURSAL
+--------------------------------------------------
+
+Debe incluir:
+
+- Importar Productos.
+- Importar Stock.
+- Importar Compra de Productos.
+
+La información debe afectar únicamente a la Sucursal.
+
+No debe mezclar el inventario de Sede Principal con el de Sucursal.
+
+==================================================
+PERMISOS DEL ÁREA ADMINISTRATIVA
+==================================================
+
+Puede:
+
+- Registrar asistencias.
+- Consultar inventario.
+- Registrar ventas.
+- Registrar entradas y salidas.
+- Gestionar productos según permisos.
+- Solicitar reposición.
+- Importar productos.
+- Importar stock.
+- Importar compras.
+- Ver reportes operativos de su sede.
+
+No puede:
+
+- Modificar precios comerciales.
+- Aprobar reposiciones.
+- Rechazar reposiciones.
+- Cambiar usuarios gerenciales.
+- Cambiar roles.
+- Cambiar contraseñas gerenciales.
+- Eliminar registros de auditoría.
+- Registrar Material Segundo Uso en Sucursal.
+- Ver información completa de la empresa sin autorización.
+
+==================================================
+VERIFICACIÓN FINAL
+==================================================
+
+Antes de terminar, verifica:
+
+- No se modificó lo desarrollado en la Parte 1.
+- Sede Principal tiene Material Nuevo y Material Segundo Uso.
+- Sucursal solo tiene Material Nuevo.
+- La reposición sigue dentro de Inventario.
+- El botón Reposición aparece junto al Stock o Estado.
+- Los colores del stock funcionan correctamente.
+- Las ventas exigen método de pago.
+- Los reportes separan Efectivo, Yape, Plin y Transferencia.
+- Caja Chica no se considera ingreso.
+- Las importaciones funcionan mediante Excel.
+- La importación de productos no modifica precios.
+- No se cambió la arquitectura oficial.
+
+==================================================
+GITHUB Y PUBLICACIÓN
+==================================================
+
+Cuando termines:
+
+1. Ejecuta pruebas para comprobar que la aplicación funciona.
+2. Corrige cualquier error encontrado.
+3. Haz un commit con un mensaje claro.
+4. Realiza push al repositorio GitHub del proyecto.
+5. Verifica que los cambios hayan quedado enviados correctamente.
+6. No cambies la configuración existente de Railway.
+7. El proyecto publicado debe seguir tomando los cambios desde GitHub.
+
+Al finalizar informa:
+
+- Archivos revisados.
+- Archivos modificados.
+- Funciones agregadas.
+- Funciones corregidas.
+- Resultado de las pruebas.
+- Mensaje del commit.
+- Confirmación de que el push a GitHub se realizó correctamente.

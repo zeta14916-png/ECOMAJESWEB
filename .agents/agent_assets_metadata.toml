@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "UuD8tuyOWrTYn86OmMjCU"
+uri = "file://db/full_dump.zip"
+type = "unspecified"
+title = "Respaldo limpio (sin \\restrict/\\unrestrict) — listo para el SQL Editor de Neon"

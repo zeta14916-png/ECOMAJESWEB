@@ -1,0 +1,608 @@
+Actúa como un desarrollador Senior especializado en Python, Streamlit y sistemas ERP.
+
+Estamos desarrollando ECOMAJES ERP para una empresa dedicada a la venta y distribución de metales (tubos, perfiles, planchas, barras, ángulos y materiales metálicos).
+
+Esta es la FASE 2 - PARTE 1 del proyecto.
+
+IMPORTANTE
+
+Antes de escribir cualquier línea de código debes analizar completamente el proyecto existente.
+
+Si un módulo ya existe:
+
+• NO lo elimines.
+• NO lo reemplaces completamente.
+• Revísalo.
+• Compáralo con este prompt.
+• Si le falta alguna función, agrégala.
+• Si ya cumple con la estructura oficial, no lo modifiques.
+
+No cambies:
+
+• La arquitectura.
+• Los nombres de los módulos.
+• La navegación.
+• Los permisos.
+• La lógica del sistema.
+• La base de datos.
+• El diseño de otros módulos.
+
+Solo desarrolla esta parte del Área Administrativa.
+
+===========================================================
+ESTRUCTURA OFICIAL DEL ÁREA ADMINISTRATIVA
+===========================================================
+
+ÁREA ADMINISTRATIVA
+
+│
+├── Inicio de sesión
+│      ├── Usuario
+│      └── Contraseña
+│
+├── Selección de sede
+│      ├── Sede Principal
+│      └── Sucursal
+│
+├── SEDE PRINCIPAL
+│      │
+│      ├── Control de Asistencia
+│      │
+│      ├── Material Nuevo
+│      │      ├── Inventario
+│      │      ├── Registro de Movimiento
+│      │      ├── Reporte de Ventas
+│      │      └── Gestión de Inventario
+│      │
+│      ├── Material Segundo Uso
+│      │
+│      └── Importaciones
+│
+└── SUCURSAL
+       ├── Control de Asistencia
+       ├── Material Nuevo
+       └── Importaciones
+
+IMPORTANTE
+
+En este prompt SOLO desarrollar:
+
+✓ Acceso
+
+✓ Selección de sede
+
+✓ Control de Asistencia
+
+✓ Material Nuevo
+
+NO desarrollar todavía:
+
+✗ Material Segundo Uso
+
+✗ Importaciones
+
+✗ Gerencia
+
+===========================================================
+1. INICIO DE SESIÓN
+===========================================================
+
+Debe solicitar:
+
+• Usuario
+
+• Contraseña
+
+Después del acceso correcto permitir seleccionar:
+
+• Sede Principal
+
+• Sucursal
+
+===========================================================
+2. CONTROL DE ASISTENCIA
+===========================================================
+
+Debe permitir:
+
+• Registrar trabajador.
+
+• Registrar Entrada.
+
+• Registrar Salida.
+
+• Fecha automática.
+
+• Hora automática.
+
+• Sede automática.
+
+• Justificación (opcional).
+
+• Botón Guardar.
+
+• Consultar registros del día cuando tenga permisos.
+
+Toda la información deberá quedar disponible para el módulo Recursos Humanos.
+
+===========================================================
+3. MATERIAL NUEVO
+===========================================================
+
+Debe contener exactamente cuatro opciones:
+
+1. Inventario
+
+2. Registro de Movimiento
+
+3. Reporte de Ventas
+
+4. Gestión de Inventario
+
+===========================================================
+3.1 INVENTARIO
+===========================================================
+
+Debe permitir:
+
+• Buscar por código.
+
+• Buscar por nombre.
+
+• Buscar por categoría.
+
+Mostrar:
+
+• Código.
+
+• Descripción.
+
+• Categoría.
+
+• Unidad.
+
+• Precio.
+
+• Stock.
+
+• Estado.
+
+===========================================================
+ESTADO DEL STOCK
+===========================================================
+
+Mostrar siempre texto y color.
+
+🔴 STOCK CRÍTICO
+
+Cuando el stock sea menor de 10.
+
+Color rojo.
+
+Debe aparecer el botón:
+
+Reposición
+
+🟡 STOCK BAJO
+
+Cuando el stock sea igual o mayor de 10 y menor de 20.
+
+Color amarillo.
+
+Debe aparecer el botón:
+
+Reposición
+
+🟢 DISPONIBLE
+
+Cuando el stock sea igual o mayor de 20.
+
+Color verde.
+
+La reposición puede permanecer oculta o deshabilitada.
+
+Reglas:
+
+Stock < 10
+
+→ Stock crítico
+
+Stock >=10 y <20
+
+→ Stock bajo
+
+Stock >=20
+
+→ Disponible
+
+===========================================================
+REPOSICIÓN
+===========================================================
+
+La reposición NO debe ser un módulo aparte.
+
+Debe estar integrada dentro del Inventario.
+
+En la tabla de productos debe existir una columna llamada:
+
+Reposición
+
+Esta columna debe estar al lado del Stock o del Estado.
+
+Cuando el producto tenga Stock Bajo o Stock Crítico debe aparecer un botón llamado:
+
+"Reposición"
+
+Al presionar ese botón debe abrir un formulario.
+
+El formulario debe mostrar:
+
+• Código.
+
+• Producto.
+
+• Stock actual.
+
+• Cantidad solicitada.
+
+• Motivo.
+
+• Usuario.
+
+• Sede.
+
+• Fecha automática.
+
+• Hora automática.
+
+Botón:
+
+Enviar solicitud.
+
+Validaciones:
+
+• La cantidad debe ser mayor que cero.
+
+• Debe ser numérica.
+
+• No permitir solicitudes vacías.
+
+• Advertir si ya existe otra solicitud pendiente del mismo producto.
+
+Cuando se guarde:
+
+Registrar:
+
+• Producto.
+
+• Código.
+
+• Stock actual.
+
+• Cantidad solicitada.
+
+• Motivo.
+
+• Usuario.
+
+• Fecha.
+
+• Hora.
+
+• Sede.
+
+Estado inicial:
+
+Pendiente.
+
+Área Administrativa únicamente puede solicitar reposición.
+
+No puede aprobarla.
+
+===========================================================
+FLUJO AUTOMÁTICO DE LA REPOSICIÓN
+===========================================================
+
+Cuando Gerencia apruebe una reposición:
+
+El sistema debe:
+
+1. Cambiar el estado a Aprobada.
+
+2. Sumar automáticamente la cantidad aprobada al stock.
+
+Ejemplo
+
+Stock actual:
+
+8
+
+Cantidad aprobada:
+
+20
+
+Nuevo stock:
+
+28
+
+Además registrar:
+
+• Stock anterior.
+
+• Stock nuevo.
+
+• Cantidad agregada.
+
+• Usuario que aprobó.
+
+• Fecha.
+
+• Hora.
+
+• Sede.
+
+• Número de solicitud.
+
+Guardar el movimiento para auditoría.
+
+Nunca permitir que una reposición aumente el stock dos veces.
+
+===========================================================
+3.2 REGISTRO DE MOVIMIENTO
+===========================================================
+
+Debe registrar:
+
+• Venta normal.
+
+• Venta por corte.
+
+• Entrada.
+
+• Salida.
+
+• Ajustes autorizados.
+
+Guardar:
+
+• Producto.
+
+• Cantidad.
+
+• Precio.
+
+• Total.
+
+• Método de pago.
+
+• Usuario.
+
+• Fecha.
+
+• Hora.
+
+• Sede.
+
+• Justificación cuando corresponda.
+
+Cada venta debe descontar automáticamente el inventario.
+
+===========================================================
+3.3 REPORTE DE VENTAS
+===========================================================
+
+Actualizar automáticamente:
+
+• Productos vendidos.
+
+• Cantidades.
+
+• Total vendido.
+
+• Efectivo.
+
+• Yape.
+
+• Plin.
+
+• Transferencia.
+
+• Caja Chica.
+
+• Ingresos adicionales.
+
+• Gastos.
+
+• Deudores.
+
+• Entrega de sobres.
+
+• Observaciones.
+
+• Resumen.
+
+Caja Chica NO debe considerarse ingreso.
+
+===========================================================
+3.4 GESTIÓN DE INVENTARIO
+===========================================================
+
+Debe permitir:
+
+• Registrar productos.
+
+• Editar información.
+
+• Corregir datos.
+
+• Activar productos.
+
+• Desactivar productos.
+
+• Consultar movimientos.
+
+• Revisar stock crítico.
+
+• Consultar solicitudes de reposición.
+
+• Ver el estado de las solicitudes.
+
+===========================================================
+ACTUALIZACIÓN DE STOCK MEDIANTE EXCEL
+===========================================================
+
+Dentro de Gestión de Inventario debe existir una opción llamada:
+
+Actualizar Stock mediante Excel.
+
+Debe contener:
+
+• Descargar plantilla.
+
+• Subir archivo Excel.
+
+• Validar archivo.
+
+• Actualizar inventario.
+
+La plantilla debe descargarse en formato Excel (.xlsx).
+
+Debe contener automáticamente:
+
+• Código.
+
+• Descripción.
+
+• Categoría.
+
+• Unidad.
+
+• Precio.
+
+• Stock actual.
+
+• Columna "Stock nuevo".
+
+• Observaciones.
+
+El usuario solamente modificará:
+
+Stock nuevo.
+
+Al subir el archivo:
+
+• Validar formato Excel.
+
+• Validar códigos.
+
+• Validar cantidades.
+
+• Mostrar errores antes de guardar.
+
+• Mostrar resumen de cambios.
+
+• Pedir confirmación.
+
+Actualizar únicamente el Stock.
+
+NO modificar:
+
+• Precio.
+
+• Código.
+
+• Descripción.
+
+• Categoría.
+
+• Unidad.
+
+Cada actualización debe registrar:
+
+• Producto.
+
+• Stock anterior.
+
+• Stock nuevo.
+
+• Diferencia.
+
+• Usuario.
+
+• Fecha.
+
+• Hora.
+
+• Sede.
+
+Guardar el movimiento para auditoría.
+
+===========================================================
+PERMISOS
+===========================================================
+
+Área Administrativa puede:
+
+✓ Registrar asistencias.
+
+✓ Consultar inventario.
+
+✓ Registrar ventas.
+
+✓ Registrar entradas.
+
+✓ Registrar salidas.
+
+✓ Gestionar productos.
+
+✓ Solicitar reposición.
+
+✓ Actualizar stock mediante Excel.
+
+✓ Consultar reportes de su sede.
+
+NO puede:
+
+✗ Modificar precios.
+
+✗ Aprobar reposiciones.
+
+✗ Cambiar usuarios.
+
+✗ Cambiar roles.
+
+✗ Cambiar contraseñas.
+
+✗ Eliminar auditoría.
+
+===========================================================
+ANTES DE FINALIZAR
+===========================================================
+
+Verifica que:
+
+✓ No cambiaste la estructura oficial.
+
+✓ No modificaste módulos de Operario.
+
+✓ La reposición está dentro del Inventario.
+
+✓ El botón Reposición aparece junto al Stock.
+
+✓ El stock cambia automáticamente únicamente cuando Gerencia aprueba la reposición.
+
+✓ La plantilla Excel solo actualiza Stock.
+
+✓ Los precios nunca cambian desde la plantilla.
+
+Al finalizar:
+
+• Indica qué archivos modificaste.
+
+• Explica qué funciones agregaste.
+
+• Explica qué funciones corregiste.
+
+• Entrega los archivos completos modificados.
+
+• Confirma que la arquitectura del ERP sigue exactamente igual.
