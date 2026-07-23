@@ -50,31 +50,80 @@ _SCOPE_META = {
 }
 
 
+def _login_css() -> str:
+    return """
+<style>
+.eco-login-card {
+    max-width: 440px;
+    margin: 2rem auto;
+    background: #FFFFFF;
+    border: 1px solid #DDE3EA;
+    border-radius: 18px;
+    padding: 2.5rem 2rem 2rem;
+    box-shadow: 0 4px 24px rgba(0,71,161,0.10);
+    text-align: center;
+}
+.eco-login-logo { margin-bottom: 1rem; }
+.eco-login-logo img { border-radius: 50%; width: 110px; }
+.eco-login-title {
+    font-size: 1.9rem; font-weight: 900; color: #0047A1;
+    letter-spacing: -0.01em; margin: 0;
+}
+.eco-login-slogan {
+    font-size: 0.88rem; color: #546E7A; font-style: italic; margin-top: 0.2rem;
+}
+.eco-login-divider {
+    border: none; border-top: 2px solid #DDE3EA; margin: 1.2rem 0;
+}
+</style>
+"""
+
+
 def render_login() -> None:
-    st.title("ECOMAJES ERP")
-    st.caption("Sistema de gestión — Acero y Ferretería")
-    st.divider()
+    from ecomajes import styles
+    from pathlib import Path
+    import base64
 
-    st.subheader("Ingreso")
+    st.markdown(_login_css(), unsafe_allow_html=True)
 
-    role = st.selectbox("Rol", config.ROLES, index=0)
+    logo_path = Path(__file__).parent.parent / "assets" / "logo_ecomajes.png"
+    logo_tag = ""
+    if logo_path.exists():
+        b64 = base64.b64encode(logo_path.read_bytes()).decode()
+        logo_tag = f'<div class="eco-login-logo"><img src="data:image/png;base64,{b64}" /></div>'
 
-    password = ""
-    if auth.requires_password(role):
-        password = st.text_input("Contraseña", type="password")
+    st.markdown(
+        f"""
+        <div class="eco-login-card">
+            {logo_tag}
+            <p class="eco-login-title">ECOMAJES ERP</p>
+            <p class="eco-login-slogan">Todo acero para tus proyectos</p>
+            <hr class="eco-login-divider">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    if st.button("Ingresar", type="primary", use_container_width=True):
-        if auth.verify_password(role, password):
-            session.authenticate(role)
-            db.log_audit(
-                db.AUDIT_LOGIN,
-                "Autenticación",
-                detalle=f"Ingreso como {role}",
-                usuario_rol=role,
-            )
-            st.rerun()
-        else:
-            st.error("Contraseña incorrecta.")
+    _, col, _ = st.columns([1, 1.8, 1])
+    with col:
+        role = st.selectbox("Rol", config.ROLES, index=0)
+
+        password = ""
+        if auth.requires_password(role):
+            password = st.text_input("Contraseña", type="password")
+
+        if st.button("🔐 Ingresar", type="primary", use_container_width=True):
+            if auth.verify_password(role, password):
+                session.authenticate(role)
+                db.log_audit(
+                    db.AUDIT_LOGIN,
+                    "Autenticación",
+                    detalle=f"Ingreso como {role}",
+                    usuario_rol=role,
+                )
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta.")
 
 
 def _scope_css(selected_meta: dict) -> str:

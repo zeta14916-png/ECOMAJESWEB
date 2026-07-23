@@ -8,12 +8,13 @@ left as placeholders until each module is approved.
 
 import streamlit as st
 
-from ecomajes import login, navigation, session
+from ecomajes import login, navigation, session, styles
 
 st.set_page_config(page_title="ECOMAJES ERP", page_icon="🔩", layout="wide")
 
 
 def main() -> None:
+    styles.inject_global_css()
     session.init_state()
 
     if not session.is_authenticated():

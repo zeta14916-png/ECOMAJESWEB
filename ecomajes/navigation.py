@@ -229,20 +229,38 @@ def _page_index(nav: list) -> dict:
 
 def _render_sidebar(nav: list) -> None:
     """Render the sidebar: session info, menu (flat + grouped) and logout."""
+    from ecomajes import styles
+    from pathlib import Path
+
+    logo_path = Path(__file__).parent.parent / "assets" / "logo_ecomajes.png"
+
     with st.sidebar:
-        st.title("ECOMAJES ERP")
-        st.caption("Acero y Ferretería")
-        st.divider()
-
-        st.markdown(f"**Rol:** {session.current_role()}")
-        scope_label = (
-            "Ámbito"
-            if session.current_role() == config.ROLE_GERENCIA
-            else "Sede"
+        # ── Logo + nombre ──────────────────────────────────────
+        if logo_path.exists():
+            st.image(str(logo_path), width=72)
+        st.markdown(
+            "<span style='font-size:1.05rem;font-weight:800;"
+            "letter-spacing:0.04em;'>ECOMAJES ERP</span><br>"
+            "<span style='font-size:0.72rem;color:#90A4AE;"
+            "font-style:italic;'>Todo acero para tus proyectos</span>",
+            unsafe_allow_html=True,
         )
-        st.markdown(f"**{scope_label}:** {session.current_sede()}")
         st.divider()
 
+        # ── Info de sesión ─────────────────────────────────────
+        role = session.current_role()
+        sede = session.current_sede()
+        scope_label = "Ámbito" if role == config.ROLE_GERENCIA else "Sede"
+        st.markdown(
+            f"<div style='font-size:0.8rem;line-height:1.7;'>"
+            f"👤 <b>{role}</b><br>"
+            f"📍 {scope_label}: <b>{sede}</b>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.divider()
+
+        # ── Menú de navegación ─────────────────────────────────
         for item in nav:
             if isinstance(item, config.Group):
                 with st.expander(f"{item.icon} {item.label}", expanded=True):
@@ -290,6 +308,39 @@ def _build_context(page, group_label, role, sede, route) -> dict:
     }
 
 
+def _render_top_header(role: str, sede: str) -> None:
+    """Encabezado de marca en la zona de contenido principal."""
+    from ecomajes import styles
+    from pathlib import Path
+    import base64
+
+    logo_path = Path(__file__).parent.parent / "assets" / "logo_ecomajes.png"
+    logo_tag = ""
+    if logo_path.exists():
+        b64 = base64.b64encode(logo_path.read_bytes()).decode()
+        logo_tag = (
+            f'<img src="data:image/png;base64,{b64}" width="42" '
+            f'style="border-radius:50%;object-fit:contain;flex-shrink:0;" />'
+        )
+
+    st.markdown(
+        f"""
+        <div class="ecomajes-header">
+            {logo_tag}
+            <div>
+                <div class="eco-title">ECOMAJES ERP</div>
+                <div class="eco-slogan">Todo acero para tus proyectos</div>
+            </div>
+            <div class="eco-meta">
+                <span class="eco-badge">👤 {role}</span>
+                <span class="eco-badge">📍 {sede}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_app() -> None:
     """Render the authenticated application: sidebar + active page."""
     role = session.current_role()
@@ -298,6 +349,7 @@ def render_app() -> None:
     index = _page_index(nav)
 
     _render_sidebar(nav)
+    _render_top_header(role, sede)
 
     active = session.active_page()
 
