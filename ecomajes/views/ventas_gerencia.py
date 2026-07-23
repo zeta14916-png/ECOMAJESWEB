@@ -203,11 +203,12 @@ def render_historial(ctx: dict) -> None:
         usuario_filter = st.text_input("Filtrar por usuario", key="hist_user")
 
     # ── Datos ──────────────────────────────────────────────────────────────── #
-    # Determinar scope
-    if sede_sel == "Todas" or include_all_ctx:
+    # Determinar scope: el filtro de Sede del formulario tiene prioridad sobre
+    # el ámbito de sesión cuando el usuario elige una sede específica.
+    if sede_sel == "Todas":
         sf, ia = None, True
     else:
-        sf, ia = (sede_filter_ctx if sede_sel == "Todas" else sede_sel), False
+        sf, ia = sede_sel, False
 
     sales = db.list_sales(sede=sf, include_all_sedes=ia,
                           date_from=fecha_ini, date_to=fecha_fin)

@@ -149,9 +149,10 @@ def _reposiciones(sede_filter: str | None, include_all: bool) -> None:
 
     st.metric("Solicitudes pendientes", len(reqs))
     st.dataframe(
-        [{"Producto": r.get("producto") or r.get("product_id"),
+        [{"Producto": r.get("descripcion") or r.get("codigo") or str(r.get("product_id", "—")),
+          "Código": r.get("codigo") or "—",
           "Sede": r.get("sede", "—"),
-          "Cantidad": float(r.get("cantidad_solicitada", 0)),
+          "Cantidad": float(r.get("cantidad_sugerida", 0)),
           "Fecha": str(r.get("created_at", "—"))[:10]}
          for r in reqs],
         use_container_width=True, hide_index=True,
