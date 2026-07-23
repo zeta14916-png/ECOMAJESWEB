@@ -1,0 +1,426 @@
+Actúa como diseñador UX/UI y desarrollador experto en Python y Streamlit.
+
+Quiero mejorar únicamente el diseño visual de ECOMAJES ERP.
+
+ECOMAJES es una empresa dedicada a la venta y control de metales, tubos redondos, tubos cuadrados, tubos rectangulares, TR4, perfiles, planchas, barras y productos de acero.
+
+Voy a adjuntar el logo oficial de ECOMAJES. Debes usarlo como referencia visual para definir colores, estilo, identidad y presentación general del sistema.
+
+ESLOGAN OFICIAL:
+
+“Todo acero para tus proyectos”
+
+IMPORTANTE:
+
+- No cambies la estructura del ERP.
+- No cambies módulos.
+- No cambies nombres.
+- No cambies navegación.
+- No cambies permisos.
+- No cambies funciones.
+- No cambies la lógica.
+- No cambies la base de datos.
+- No elimines nada de lo que ya funciona.
+- No agregues funciones nuevas.
+- No modifiques los procesos de inventario, ventas, asistencia, reposición, reportes, precios ni recursos humanos.
+- Solo mejora la apariencia visual.
+- Conserva Streamlit.
+- Reutiliza los componentes existentes.
+- No agregues dependencias innecesarias.
+
+OBJETIVO DEL DISEÑO
+
+El sistema debe transmitir:
+
+- Solidez.
+- Confianza.
+- Industria.
+- Acero.
+- Orden.
+- Precisión.
+- Modernidad.
+- Profesionalismo.
+- Sostenibilidad.
+- Control interno.
+
+El diseño debe sentirse relacionado con una empresa de metales y acero, pero sin verse demasiado oscuro, pesado ni antiguo.
+
+PALETA DE COLORES
+
+Usa principalmente los colores del logo:
+
+- Azul profundo.
+- Azul acero.
+- Verde.
+- Blanco.
+- Gris metálico.
+- Gris grafito.
+
+Usar colores de estado:
+
+- Verde para disponible, correcto o aprobado.
+- Amarillo para advertencia o stock bajo.
+- Rojo para stock crítico, error o acción peligrosa.
+
+Distribución sugerida:
+
+- Fondo general: blanco o gris muy claro.
+- Menú lateral: azul profundo o gris grafito.
+- Encabezados: azul profundo.
+- Botones principales: azul acero.
+- Botones secundarios o de confirmación: verde.
+- Bordes: gris metálico suave.
+- Texto principal: gris oscuro.
+- Texto secundario: gris medio.
+
+LOGO
+
+- Colocar el logo oficial de ECOMAJES en la pantalla principal.
+- Colocarlo también en tamaño reducido en el menú lateral.
+- No deformar el logo.
+- Mantener su proporción original.
+- No colocarlo demasiado grande.
+- Mantener el eslogan exactamente así:
+
+“Todo acero para tus proyectos”
+
+ENCABEZADO PRINCIPAL
+
+Debe mostrar:
+
+- Logo de ECOMAJES.
+- Título: ECOMAJES ERP.
+- Eslogan: “Todo acero para tus proyectos”.
+- Rol actual.
+- Sede seleccionada.
+- Usuario, cuando corresponda.
+
+El encabezado debe verse moderno, compacto, limpio y profesional.
+
+MENÚ LATERAL
+
+Mejorar el menú lateral sin cambiar sus opciones.
+
+Debe tener:
+
+- Fondo azul profundo o grafito.
+- Texto blanco.
+- Módulo activo resaltado.
+- Separación clara entre secciones.
+- Logo pequeño en la parte superior.
+- Rol actual.
+- Sede seleccionada.
+- Botón de cerrar sesión visible.
+- Iconos discretos relacionados con cada módulo.
+
+No cambies el orden ni los nombres de los módulos.
+
+BOTONES
+
+Unificar el estilo de los botones:
+
+Botón principal:
+- Azul acero.
+- Texto blanco.
+- Bordes suaves.
+- Buen tamaño.
+- Efecto hover discreto.
+
+Botón secundario:
+- Blanco o gris claro.
+- Borde gris.
+- Texto oscuro.
+
+Botón de confirmación:
+- Verde.
+
+Botón de advertencia:
+- Amarillo o naranja industrial.
+
+Botón de acción crítica:
+- Rojo.
+
+No cambies la función de ningún botón.
+
+INVENTARIO
+
+Mejorar visualmente las tablas y listas de inventario.
+
+Debe conservar:
+
+- Código.
+- Descripción.
+- Categoría.
+- Unidad.
+- Precio.
+- Stock.
+- Estado.
+- Reposición.
+
+Aplicar los estados así:
+
+- Stock menor de 10:
+  texto “Stock crítico” y color rojo.
+
+- Stock entre 10 y 19:
+  texto “Stock bajo” y color amarillo.
+
+- Stock igual o mayor de 20:
+  texto “Disponible” y color verde.
+
+No mostrar solamente el color. Mostrar siempre color y texto.
+
+El botón Reposición debe verse claro y profesional, sin cambiar su funcionamiento.
+
+TABLAS
+
+Aplicar un estilo moderno:
+
+- Encabezados con fondo azul profundo.
+- Texto blanco.
+- Filas fáciles de leer.
+- Filas alternadas en blanco y gris muy claro.
+- Bordes suaves.
+- Buen espaciado.
+- Columnas bien alineadas.
+- Texto legible.
+- Acciones pequeñas y ordenadas.
+
+FORMULARIOS
+
+Mejorar la presentación de formularios:
+
+- Campos ordenados.
+- Espacio suficiente entre elementos.
+- Títulos claros.
+- Secciones visualmente separadas.
+- Etiquetas legibles.
+- Botones alineados.
+- Mensajes de ayuda debajo de los campos cuando sea necesario.
+- Mensajes de éxito, advertencia y error fáciles de entender.
+
+No cambies los campos ni sus funciones.
+
+REGISTRO DE MOVIMIENTO
+
+Mejorar únicamente el diseño visual de:
+
+- Venta normal.
+- Venta por corte.
+- Entradas.
+- Salidas.
+- Ajustes.
+- Selección de método de pago.
+- Totales.
+- Usuario.
+- Sede.
+- Fecha.
+- Hora.
+- Justificación.
+
+Los métodos de pago deben verse claramente:
+
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+No cambies su lógica.
+
+REPORTE DE VENTAS
+
+Organizar visualmente el reporte en secciones claras:
+
+- Productos vendidos.
+- Cantidades.
+- Total vendido.
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+- Caja Chica.
+- Ingresos adicionales.
+- Gastos.
+- Deudores.
+- Entrega de sobres.
+- Observaciones.
+- Resumen final.
+
+Usar tarjetas para los totales y tablas para los detalles.
+
+Caja Chica debe verse como una sección independiente.
+
+No cambiar su lógica ni tratarla como ingreso.
+
+DASHBOARD Y REPORTES
+
+Usar tarjetas visuales para:
+
+- Ventas del día.
+- Ventas del mes.
+- Stock crítico.
+- Reposiciones pendientes.
+- Caja Chica.
+- Ingresos.
+- Egresos.
+- Balance.
+- Trabajadores presentes.
+
+Las tarjetas deben:
+
+- Tener títulos breves.
+- Mostrar números destacados.
+- Usar iconos discretos.
+- Mantener el mismo estilo.
+- No ser demasiado grandes.
+- Tener sombras suaves y bordes ligeros.
+
+ASISTENCIA
+
+Mejorar visualmente:
+
+- Título.
+- Campos del trabajador.
+- Entrada.
+- Salida.
+- Fecha.
+- Hora.
+- Sede.
+- Justificación.
+- Botón guardar.
+- Mensajes de confirmación.
+
+No cambiar el funcionamiento.
+
+COMENTARIOS
+
+Mejorar:
+
+- Título correcto.
+- Área de escritura.
+- Botón enviar.
+- Historial de comentarios.
+- Autor.
+- Sede.
+- Fecha.
+- Hora.
+
+No cambiar funciones.
+
+PRECIOS
+
+El módulo Precios debe verse como una hoja de cálculo profesional.
+
+Mejorar:
+
+- Encabezados.
+- Ancho de columnas.
+- Espaciado.
+- Filas.
+- Campos editables.
+- Botones.
+- Mensajes de guardado.
+- Visibilidad de precios y costos.
+
+No modificar los campos ni la lógica.
+
+RECURSOS HUMANOS
+
+Mejorar visualmente:
+
+- Trabajadores.
+- Asistencias.
+- Entradas.
+- Salidas.
+- Tardanzas.
+- Pagos.
+- Bonificaciones.
+- Descuentos.
+- Observaciones.
+
+Usar pestañas, tablas o tarjetas existentes, sin cambiar la estructura.
+
+ESTILO INDUSTRIAL
+
+Usar una estética relacionada con metales y acero:
+
+- Líneas rectas.
+- Colores sobrios.
+- Detalles metálicos suaves.
+- Iconos relacionados con tubos, perfiles, inventario, ventas y finanzas.
+- Diseño limpio.
+- Nada infantil.
+- Nada recargado.
+- Nada excesivamente oscuro.
+- Nada con demasiadas animaciones.
+
+DISEÑO ADAPTABLE
+
+La interfaz debe verse bien en:
+
+- Computadora.
+- Laptop.
+- Tablet.
+
+Evitar columnas demasiado estrechas.
+
+CSS
+
+- Centralizar los estilos.
+- Evitar CSS repetido.
+- Usar variables de color.
+- Mantener una sola identidad visual.
+- No romper la compatibilidad con Streamlit.
+- No modificar la lógica mediante CSS.
+- No agregar librerías innecesarias.
+
+PROCESO DE TRABAJO
+
+1. Revisa el diseño actual.
+2. Identifica los archivos relacionados únicamente con estilos e interfaz.
+3. Conserva toda la estructura y funcionalidad.
+4. Mejora el encabezado.
+5. Mejora el menú lateral.
+6. Mejora botones.
+7. Mejora formularios.
+8. Mejora tablas.
+9. Mejora reportes y tarjetas.
+10. Verifica que todos los módulos sigan funcionando igual.
+
+GITHUB Y RAILWAY
+
+El proyecto ya está conectado con GitHub y Railway.
+
+Por cada cambio realizado:
+
+1. Guarda los cambios.
+2. Verifica que la aplicación siga funcionando.
+3. Haz un commit con un mensaje claro y descriptivo.
+4. Realiza push al repositorio GitHub del proyecto.
+5. Verifica que el push se haya realizado correctamente.
+6. No modifiques la configuración de Railway.
+7. Railway debe actualizarse desde GitHub con los cambios enviados.
+
+No indiques que hiciste push si realmente no se pudo realizar.
+
+AL FINALIZAR
+
+Informa:
+
+- Qué archivos modificaste.
+- Qué mejoras visuales realizaste.
+- Qué mensaje de commit utilizaste.
+- Si el push a GitHub se realizó correctamente.
+- Confirma que no cambiaste estructura.
+- Confirma que no cambiaste funciones.
+- Confirma que no cambiaste permisos.
+- Confirma que no cambiaste base de datos.
+- Confirma que la aplicación sigue funcionando igual.
+
+RESULTADO ESPERADO
+
+ECOMAJES ERP debe verse moderno, profesional, industrial, limpio y coherente con el logo oficial de ECOMAJES y con el eslogan:
+
+“Todo acero para tus proyectos”
+
+La mejora es únicamente visual. Toda la estructura y funcionalidad ya desarrollada debe permanecer exactamente igual.
