@@ -1,0 +1,389 @@
+Actúa como desarrollador senior experto en Python, Streamlit, PostgreSQL y sistemas ERP.
+
+Continuaremos desarrollando ECOMAJES ERP.
+
+Las Partes 1 y 2 de Gerencia ya fueron desarrolladas.
+
+No modifiques:
+
+- Acceso.
+- Selección de ámbito.
+- Panel Principal.
+- Ventas.
+- Historial.
+- Productos.
+- Precios.
+- Inventario General.
+- Reposiciones.
+- Operario.
+- Área Administrativa.
+
+Esta es la FASE 3 - PARTE 3.
+
+Trabaja únicamente en:
+
+1. Recursos Humanos.
+2. Balance Financiero.
+3. Configuración.
+
+==================================================
+REGLAS
+==================================================
+
+Antes de programar, revisa el proyecto.
+
+Si algo ya existe:
+
+- Consérvalo.
+- Complétalo.
+- Corrige únicamente lo necesario.
+- No cambies nombres.
+- No cambies navegación.
+- No cambies permisos.
+- No elimines código funcional.
+- No modifiques módulos ya terminados.
+
+==================================================
+1. RECURSOS HUMANOS
+==================================================
+
+Debe contener:
+
+- Trabajadores.
+- Asistencias.
+- Entradas.
+- Salidas.
+- Tardanzas.
+- Pagos.
+- Bonificaciones.
+- Descuentos.
+- Observaciones.
+
+--------------------------------------------------
+TRABAJADORES
+--------------------------------------------------
+
+Debe permitir:
+
+- Registrar trabajador.
+- Editar datos.
+- Activar.
+- Desactivar.
+- Buscar.
+- Filtrar.
+
+Campos mínimos:
+
+- Código o identificador.
+- Nombre completo.
+- Documento.
+- Cargo.
+- Sede.
+- Fecha de ingreso.
+- Estado.
+- Observaciones.
+
+No eliminar trabajadores con historial.
+
+--------------------------------------------------
+ASISTENCIAS
+--------------------------------------------------
+
+Debe leer los registros guardados desde:
+
+- Operario.
+- Área Administrativa.
+
+Mostrar:
+
+- Trabajador.
+- Entrada.
+- Salida.
+- Fecha.
+- Hora.
+- Sede.
+- Justificación.
+- Usuario que registró.
+
+Permitir filtros por:
+
+- Trabajador.
+- Fecha.
+- Sede.
+- Tipo de registro.
+
+--------------------------------------------------
+TARDANZAS
+--------------------------------------------------
+
+Debe permitir identificar tardanzas según parámetros autorizados.
+
+Mostrar:
+
+- Trabajador.
+- Fecha.
+- Hora esperada.
+- Hora registrada.
+- Minutos de tardanza.
+- Justificación.
+- Sede.
+
+No inventar horarios si no existen parámetros configurados.
+
+--------------------------------------------------
+PAGOS
+--------------------------------------------------
+
+Debe permitir registrar:
+
+- Trabajador.
+- Periodo.
+- Monto.
+- Fecha.
+- Concepto.
+- Usuario responsable.
+- Observación.
+
+--------------------------------------------------
+BONIFICACIONES
+--------------------------------------------------
+
+Registrar:
+
+- Trabajador.
+- Monto.
+- Motivo.
+- Fecha.
+- Usuario.
+
+--------------------------------------------------
+DESCUENTOS
+--------------------------------------------------
+
+Registrar:
+
+- Trabajador.
+- Monto.
+- Motivo.
+- Fecha.
+- Usuario.
+
+Mantener trazabilidad.
+
+==================================================
+2. BALANCE FINANCIERO
+==================================================
+
+Debe contener:
+
+- Balance diario.
+- Balance semanal.
+- Balance mensual.
+- Balance anual.
+- Ingresos.
+- Egresos.
+- Utilidad.
+- Inversión.
+- Ganancia neta.
+- Gráficos.
+
+Debe respetar el ámbito:
+
+- Sede Principal.
+- Sucursal.
+- Empresa Completa.
+
+Cálculos:
+
+Ingresos:
+- Ventas.
+- Ingresos adicionales autorizados.
+
+Egresos:
+- Gastos.
+- Compras.
+- Pagos.
+- Otros egresos autorizados.
+
+Caja Chica:
+- No debe considerarse ingreso.
+- Debe mostrarse por separado.
+
+Mostrar:
+
+- Total de ingresos.
+- Total de egresos.
+- Utilidad.
+- Inversión.
+- Ganancia neta.
+- Periodo.
+- Sede.
+
+No modificar balances históricos sin registrar:
+
+- Usuario.
+- Fecha.
+- Hora.
+- Motivo.
+
+==================================================
+3. CONFIGURACIÓN
+==================================================
+
+Debe contener:
+
+- Datos de la empresa.
+- Usuarios.
+- Contraseñas.
+- Roles.
+- Permisos.
+- Caja Chica.
+- Copias de seguridad.
+- Parámetros del sistema.
+
+--------------------------------------------------
+DATOS DE LA EMPRESA
+--------------------------------------------------
+
+Permitir gestionar:
+
+- Nombre.
+- RUC.
+- Dirección.
+- Teléfono.
+- Correo.
+- Logo.
+- Sedes.
+
+--------------------------------------------------
+USUARIOS
+--------------------------------------------------
+
+Permitir:
+
+- Crear usuario.
+- Editar usuario.
+- Activar.
+- Desactivar.
+- Asignar rol.
+- Asignar sede.
+
+No mostrar contraseñas en texto visible.
+
+--------------------------------------------------
+ROLES Y PERMISOS
+--------------------------------------------------
+
+Roles oficiales:
+
+- Operario.
+- Área Administrativa.
+- Gerencia.
+
+Respetar permisos definidos.
+
+No permitir que Área Administrativa cambie permisos gerenciales.
+
+--------------------------------------------------
+CAJA CHICA
+--------------------------------------------------
+
+Registrar:
+
+- Monto base.
+- Dinero contado.
+- Diferencia.
+- Observación.
+- Usuario.
+- Fecha.
+- Sede.
+
+Caja Chica es fondo fijo.
+
+No considerarla ingreso.
+
+--------------------------------------------------
+COPIAS DE SEGURIDAD
+--------------------------------------------------
+
+Integrarse con la arquitectura existente.
+
+No borrar datos.
+
+No exponer credenciales.
+
+No modificar la configuración de Railway sin autorización.
+
+--------------------------------------------------
+PARÁMETROS
+--------------------------------------------------
+
+Permitir parámetros autorizados como:
+
+- Horarios laborales.
+- Límites de stock.
+- Datos generales.
+- Configuraciones permitidas.
+
+No cambiar reglas críticas sin trazabilidad.
+
+==================================================
+SEGURIDAD Y PROHIBICIONES
+==================================================
+
+Gerencia no debe:
+
+- Eliminar auditoría.
+- Compartir contraseñas.
+- Borrar historial sin trazabilidad.
+- Modificar datos financieros sin respaldo.
+- Usar Caja Chica como ingreso.
+- Eliminar trabajadores con historial.
+- Exponer secretos o variables privadas.
+
+==================================================
+PRUEBAS
+==================================================
+
+Comprobar:
+
+- Registrar trabajador.
+- Consultar asistencias.
+- Ver tardanzas.
+- Registrar pagos.
+- Registrar bonificaciones.
+- Registrar descuentos.
+- Calcular balances.
+- Separar Caja Chica.
+- Administrar usuarios.
+- Asignar roles.
+- Respetar permisos.
+- Mantener auditoría.
+
+==================================================
+GITHUB Y RAILWAY
+==================================================
+
+Después de cada cambio funcional terminado:
+
+1. Guardar cambios.
+2. Ejecutar pruebas.
+3. Corregir errores.
+4. Hacer commit descriptivo.
+5. Hacer push al repositorio GitHub.
+6. Verificar el push.
+7. No modificar configuración de Railway.
+8. Verificar el despliegue automático desde GitHub.
+9. Confirmar que la aplicación publicada funciona.
+10. No afirmar éxito si no fue comprobado.
+
+Al finalizar indicar:
+
+- Archivos revisados.
+- Archivos modificados.
+- Funciones agregadas.
+- Funciones corregidas.
+- Resultado de pruebas.
+- Mensaje del commit.
+- Confirmación del push.
+- Confirmación del despliegue en Railway.

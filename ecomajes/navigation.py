@@ -15,6 +15,7 @@ from ecomajes.views import (
     auditoria,
     balance,
     comentarios,
+    configuracion,
     gestion_inventario,
     importar_compra,
     importar_productos,
@@ -228,11 +229,18 @@ ROUTES = {
         "material_tipo": None,
         "editable": False,
     },
+    # GERENCIA — system configuration (empresa, usuarios, caja chica, params).
+    "ger_configuracion": {
+        "view": "configuracion",
+        "material_tipo": None,
+        "editable": True,
+    },
 }
 
 _VIEWS = {
     "asistencia": asistencia.render,
     "alertas": alertas.render,
+    "configuracion": configuracion.render,
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
     "importar_compra": importar_compra.render,

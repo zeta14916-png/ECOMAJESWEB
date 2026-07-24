@@ -159,6 +159,41 @@ def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
                 )
                 """
             )
+            # Employees — extended fields for HR (Phase 3 Part 3).
+            cur.execute(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS documento TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS cargo TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS sede TEXT"
+            )
+            # Company configuration.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS empresa_config (
+                    id SERIAL PRIMARY KEY,
+                    clave TEXT NOT NULL UNIQUE,
+                    valor TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                    updated_by TEXT
+                )
+                """
+            )
+            # System parameters (horarios, stock limits, etc.).
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS system_params (
+                    id SERIAL PRIMARY KEY,
+                    clave TEXT NOT NULL UNIQUE,
+                    valor TEXT,
+                    descripcion TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                    updated_by TEXT
+                )
+                """
+            )
             # ----------------------------------------------------------------
             # Replenishment requests — Phase 3 Part 2 schema migration.
             # New columns for approval/rejection workflow.
@@ -2034,6 +2069,9 @@ def create_employee(
     direccion: str | None = None,
     fecha_ingreso=None,
     salario: Decimal = Decimal("0"),
+    documento: str | None = None,
+    cargo: str | None = None,
+    sede: str | None = None,
 ) -> None:
     """Insert a new employee. Password is stored salted+hashed."""
     if estado not in EMPLOYEE_STATUS_LABELS:
@@ -2046,8 +2084,9 @@ def create_employee(
                     """
                     INSERT INTO employees
                         (nombre, username, password_hash, password_salt, rol,
-                         estado, telefono, direccion, fecha_ingreso, salario)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         estado, telefono, direccion, fecha_ingreso, salario,
+                         documento, cargo, sede)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         nombre,
@@ -2060,6 +2099,9 @@ def create_employee(
                         direccion,
                         fecha_ingreso,
                         salario,
+                        documento,
+                        cargo,
+                        sede,
                     ),
                 )
             conn.commit()
@@ -2076,6 +2118,7 @@ def create_employee(
 def list_employees(
     include_inactive: bool = True,
     search: str | None = None,
+    sede: str | None = None,
 ) -> list[dict]:
     """Return employees, optionally filtered by status and a text search.
 
@@ -2087,13 +2130,18 @@ def list_employees(
         clauses.append("estado = %s")
         params.append(EMPLOYEE_ACTIVO)
     if search:
-        clauses.append("(nombre ILIKE %s OR username ILIKE %s)")
+        clauses.append(
+            "(nombre ILIKE %s OR username ILIKE %s OR documento ILIKE %s OR cargo ILIKE %s)"
+        )
         like = f"%{search}%"
-        params.extend([like, like])
+        params.extend([like, like, like, like])
+    if sede:
+        clauses.append("sede = %s")
+        params.append(sede)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
         "SELECT id, nombre, username, rol, estado, telefono, direccion, "
-        "fecha_ingreso, salario, created_at "
+        "fecha_ingreso, salario, documento, cargo, sede, created_at "
         f"FROM employees {where} ORDER BY nombre"
     )
     with _get_conn() as conn:
@@ -2108,7 +2156,7 @@ def get_employee(employee_id: int) -> dict | None:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 "SELECT id, nombre, username, rol, estado, telefono, direccion, "
-                "fecha_ingreso, salario, created_at "
+                "fecha_ingreso, salario, documento, cargo, sede, created_at "
                 "FROM employees WHERE id = %s",
                 (employee_id,),
             )
@@ -2127,6 +2175,9 @@ def update_employee(
     fecha_ingreso,
     salario: Decimal,
     password: str | None = None,
+    documento: str | None = None,
+    cargo: str | None = None,
+    sede: str | None = None,
 ) -> None:
     """Update an employee. If `password` is provided, it is re-hashed."""
     if estado not in EMPLOYEE_STATUS_LABELS:
@@ -2140,6 +2191,9 @@ def update_employee(
         "direccion = %s",
         "fecha_ingreso = %s",
         "salario = %s",
+        "documento = %s",
+        "cargo = %s",
+        "sede = %s",
     ]
     params: list = [
         nombre,
@@ -2150,6 +2204,9 @@ def update_employee(
         direccion,
         fecha_ingreso,
         salario,
+        documento,
+        cargo,
+        sede,
     ]
     if password:
         password_hash, password_salt = _hash_password(password)
@@ -2274,6 +2331,40 @@ def list_payroll_payments(
             return [dict(row) for row in cur.fetchall()]
 
 
+def payroll_total_by_sede(
+    sede: str | None = None,
+    include_all_sedes: bool = False,
+    date_from=None,
+    date_to=None,
+) -> Decimal:
+    """Total payroll (pago_final) filtered by employee sede and date range.
+
+    Employees without a sede assigned are included in all-sedes queries.
+    """
+    clauses: list[str] = []
+    params: list = []
+    if not include_all_sedes and sede is not None:
+        clauses.append("(e.sede = %s OR e.sede IS NULL)")
+        params.append(sede)
+    if date_from is not None:
+        clauses.append("pp.fecha >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        clauses.append("pp.fecha <= %s")
+        params.append(date_to)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = (
+        "SELECT COALESCE(SUM(pp.pago_final), 0) AS total "
+        "FROM payroll_payments pp "
+        f"JOIN employees e ON e.id = pp.employee_id {where}"
+    )
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+    return Decimal(row["total"])
+
+
 def payroll_total(date_from=None, date_to=None) -> Decimal:
     """Total payroll paid (sum of pago_final) within an optional date range.
 
@@ -2312,6 +2403,108 @@ COMMENT_STATUS_LABELS = {
 }
 
 # Audit action keys (stored on audit_log.accion) + labels for display.
+# --------------------------------------------------------------------------- #
+# Empresa config & system params
+# --------------------------------------------------------------------------- #
+
+_EMPRESA_DEFAULTS = {
+    "nombre": "ECOMAJES",
+    "ruc": "",
+    "direccion": "",
+    "telefono": "",
+    "correo": "",
+    "sede_principal": "Sede Principal",
+    "sede_sucursal": "Sucursal",
+}
+
+
+def get_empresa_config() -> dict:
+    """Return all empresa_config key/value pairs as a dict."""
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT clave, valor FROM empresa_config")
+            rows = {r["clave"]: r["valor"] for r in cur.fetchall()}
+    result = dict(_EMPRESA_DEFAULTS)
+    result.update(rows)
+    return result
+
+
+def save_empresa_config(data: dict, usuario_rol: str | None = None) -> None:
+    """Upsert empresa_config key/value pairs."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                for clave, valor in data.items():
+                    cur.execute(
+                        """
+                        INSERT INTO empresa_config (clave, valor, updated_by)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (clave) DO UPDATE
+                          SET valor = EXCLUDED.valor,
+                              updated_at = now(),
+                              updated_by = EXCLUDED.updated_by
+                        """,
+                        (clave, str(valor) if valor is not None else "", usuario_rol),
+                    )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def get_system_param(clave: str, default: str = "") -> str:
+    """Return a single system parameter value, or `default` if not set."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT valor FROM system_params WHERE clave = %s", (clave,)
+            )
+            row = cur.fetchone()
+    return row[0] if row and row[0] is not None else default
+
+
+def list_system_params() -> list[dict]:
+    """Return all system parameters."""
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, clave, valor, descripcion, updated_at, updated_by "
+                "FROM system_params ORDER BY clave"
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+def set_system_param(
+    clave: str,
+    valor: str,
+    descripcion: str | None = None,
+    usuario_rol: str | None = None,
+) -> None:
+    """Upsert a single system parameter."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO system_params (clave, valor, descripcion, updated_by)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (clave) DO UPDATE
+                      SET valor = EXCLUDED.valor,
+                          descripcion = COALESCE(EXCLUDED.descripcion, system_params.descripcion),
+                          updated_at = now(),
+                          updated_by = EXCLUDED.updated_by
+                    """,
+                    (clave, valor, descripcion, usuario_rol),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+# --------------------------------------------------------------------------- #
+# Audit
+# --------------------------------------------------------------------------- #
 AUDIT_LOGIN = "login"
 AUDIT_PRODUCT_CREATED = "producto_creado"
 AUDIT_PRODUCT_UPDATED = "producto_editado"
@@ -2323,6 +2516,7 @@ AUDIT_SALES_REPORT = "reporte_generado"
 AUDIT_EXPENSE = "gasto_creado"
 AUDIT_PAYROLL = "pago_nomina"
 AUDIT_IMPORT = "productos_importados"
+AUDIT_CONFIG = "configuracion_actualizada"
 AUDIT_ACTION_LABELS = {
     AUDIT_LOGIN: "Inicio de sesión",
     AUDIT_PRODUCT_CREATED: "Producto creado",
@@ -2335,6 +2529,7 @@ AUDIT_ACTION_LABELS = {
     AUDIT_EXPENSE: "Gasto registrado",
     AUDIT_PAYROLL: "Pago de nómina",
     AUDIT_IMPORT: "Productos importados",
+    AUDIT_CONFIG: "Configuración actualizada",
 }
 
 
