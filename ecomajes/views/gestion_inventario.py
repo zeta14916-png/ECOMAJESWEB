@@ -51,14 +51,30 @@ def _sede_label(in_principal: bool, in_sucursal: bool) -> str:
 
 
 def _fetch_prices() -> dict:
-    """Return a {product_id: precio} map from the prices table."""
+    """Return a {codigo: precio} map from the prices table.
+
+    Uses `codigo` as the key because `inventory_overview` groups rows by
+    (material_tipo, nombre) and does NOT expose a product id — `codigo` is
+    the stable identifier available in both datasets.
+    Rows without a codigo (blank) are skipped; when multiple products share the
+    same codigo (edge case) the highest price wins.
+    """
     try:
         rows = db.list_prices(
             sede=None,
             material_tipo=None,
             include_all_sedes=True,
         )
-        return {r["product_id"]: _num(r.get("precio")) for r in rows}
+        price_map: dict = {}
+        for r in rows:
+            codigo = (r.get("codigo") or "").strip()
+            if not codigo:
+                continue
+            precio = _num(r.get("precio"))
+            # Keep the higher value when there are duplicates.
+            if codigo not in price_map or precio > price_map[codigo]:
+                price_map[codigo] = precio
+        return price_map
     except Exception:  # noqa: BLE001
         return {}
 
@@ -91,8 +107,9 @@ def _build_rows(scope: str, material_tipo: str | None, prices: dict) -> list[dic
         tipo = p.get("material_tipo") or ""
         tipo_label = db.TIPO_LABELS.get(tipo, tipo or "—")
 
-        # Price: look up by product_id if available.
-        precio = prices.get(p.get("id")) if p.get("id") else 0.0
+        # Price: look up by codigo (the key shared with inventory_overview).
+        codigo_key = (p.get("codigo") or "").strip()
+        precio = prices.get(codigo_key, 0.0)
 
         rows.append(
             {
