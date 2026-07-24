@@ -238,6 +238,42 @@ def _edit_form(ctx: dict, products: list[dict]) -> None:
                 st.success("Producto activado.")
                 st.rerun()
 
+        # Delete — only allowed when the product has no movement history.
+        st.divider()
+        prod_label = prod["descripcion"] or prod["nombre"]
+        with st.expander("🗑️ Eliminar producto", expanded=False):
+            st.warning(
+                "⚠️ Solo se puede eliminar un producto que no tenga historial de "
+                "movimientos. Esta acción es irreversible."
+            )
+            confirm_key = f"confirm_del_{selected_id}"
+            confirmed = st.checkbox(
+                f'Confirmo que deseo eliminar «{prod_label}»',
+                key=confirm_key,
+            )
+            if confirmed:
+                if st.button(
+                    "🗑️ Eliminar definitivamente",
+                    key=f"del_btn_{selected_id}",
+                    type="primary",
+                ):
+                    try:
+                        db.delete_catalog_product(selected_id)
+                    except ValueError as exc:
+                        st.error(str(exc))
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"No se pudo eliminar el producto: {exc}")
+                    else:
+                        db.log_audit(
+                            db.AUDIT_PRODUCT_UPDATED,
+                            "Productos",
+                            detalle=f"Eliminado: {prod_label} (ID {selected_id})",
+                            usuario_rol=ctx["usuario_rol"],
+                            sede=prod["sede"],
+                        )
+                        st.success(f"Producto «{prod_label}» eliminado.")
+                        st.rerun()
+
 
 def render(ctx: dict) -> None:
     st.header(ctx["title"])

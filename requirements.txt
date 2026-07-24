@@ -3,3 +3,8 @@ psycopg2-binary>=2.9.0
 pandas>=2.0.0
 openpyxl
 reportlab
+openpyxl
+pandas
+psycopg2-binary
+reportlab
+streamlit

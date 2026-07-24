@@ -159,6 +159,60 @@ def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
                 )
                 """
             )
+            # ----------------------------------------------------------------
+            # Replenishment requests — Phase 3 Part 2 schema migration.
+            # New columns for approval/rejection workflow.
+            # ----------------------------------------------------------------
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS cantidad_aprobada NUMERIC(12,2)"
+            )
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS aprobado_por TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS motivo_rechazo TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS stock_anterior NUMERIC(12,2)"
+            )
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS stock_nuevo NUMERIC(12,2)"
+            )
+            # Migrate old status values to the new workflow states.
+            cur.execute(
+                "UPDATE replenishment_requests "
+                "SET estado = 'pendiente' "
+                "WHERE estado IN ('en_proceso', 'comprado')"
+            )
+            cur.execute(
+                "UPDATE replenishment_requests "
+                "SET estado = 'atendida' "
+                "WHERE estado = 'recibido'"
+            )
+            # Replace the old CHECK constraint with one that supports the new
+            # states (pendiente → aprobada → atendida | rechazada).
+            cur.execute(
+                """
+                DO $$
+                BEGIN
+                    ALTER TABLE replenishment_requests
+                        DROP CONSTRAINT IF EXISTS replenishment_requests_estado_check;
+                    BEGIN
+                        ALTER TABLE replenishment_requests
+                            ADD CONSTRAINT replenishment_requests_estado_check_v2
+                            CHECK (estado = ANY(
+                                ARRAY['pendiente','aprobada','atendida','rechazada']
+                            ));
+                    EXCEPTION WHEN duplicate_object THEN NULL;
+                    END;
+                END $$;
+                """
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -418,6 +472,31 @@ def update_catalog_product(
                         product_id,
                     ),
                 )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def delete_catalog_product(product_id: int) -> None:
+    """Delete a product only when it has NO movement history.
+
+    Raises ValueError if the product has any movements (trazabilidad protected).
+    """
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM movements WHERE product_id = %s",
+                    (product_id,),
+                )
+                count = cur.fetchone()[0]
+                if count > 0:
+                    raise ValueError(
+                        "No se puede eliminar: el producto tiene historial de "
+                        f"movimientos ({count} registros)."
+                    )
+                cur.execute("DELETE FROM products WHERE id = %s", (product_id,))
             conn.commit()
         except Exception:
             conn.rollback()
@@ -2431,18 +2510,24 @@ def set_comment_status(comment_id: int, estado: str) -> None:
 # --------------------------------------------------------------------------- #
 
 # Request status keys (stored on replenishment_requests.estado, CHECK-constrained).
+# Workflow: Pendiente → Aprobada → Atendida | Rechazada
 REPO_PENDIENTE = "pendiente"
+REPO_APROBADA = "aprobada"
+REPO_ATENDIDA = "atendida"
+REPO_RECHAZADA = "rechazada"
+# Legacy keys kept for backward-compat DB reads during migration window.
 REPO_EN_PROCESO = "en_proceso"
 REPO_COMPRADO = "comprado"
 REPO_RECIBIDO = "recibido"
 REPO_STATUS_LABELS = {
     REPO_PENDIENTE: "Pendiente",
-    REPO_EN_PROCESO: "En proceso",
-    REPO_COMPRADO: "Comprado",
-    REPO_RECIBIDO: "Recibido",
+    REPO_APROBADA: "Aprobada",
+    REPO_ATENDIDA: "Atendida",
+    REPO_RECHAZADA: "Rechazada",
 }
-# An "open" request is anything not yet fully received; used to avoid duplicates.
-_REPO_OPEN_STATES = (REPO_PENDIENTE, REPO_EN_PROCESO, REPO_COMPRADO)
+# An "open" request is one that hasn't reached a terminal state.
+# Terminal states are: atendida, rechazada.
+_REPO_OPEN_STATES = (REPO_PENDIENTE, REPO_APROBADA)
 
 
 def add_replenishment_request(
@@ -2518,7 +2603,8 @@ def list_replenishment_requests(
     sql = (
         "SELECT id, product_id, codigo, descripcion, sede, material_tipo, "
         "stock_actual, stock_minimo, cantidad_sugerida, solicitado_por, "
-        "estado, created_at "
+        "estado, created_at, cantidad_aprobada, aprobado_por, "
+        "motivo_rechazo, stock_anterior, stock_nuevo "
         f"FROM replenishment_requests {where} "
         "ORDER BY created_at DESC, id DESC LIMIT %s"
     )
@@ -2529,8 +2615,162 @@ def list_replenishment_requests(
             return [dict(row) for row in cur.fetchall()]
 
 
+def approve_replenishment_request(
+    request_id: int,
+    cantidad_aprobada: Decimal,
+    usuario_rol: str,
+) -> dict:
+    """Approve a replenishment request: update stock + register entrada movement.
+
+    Returns {'stock_anterior', 'stock_nuevo'} for display.
+    Raises ValueError if the request is not in Pendiente state or already approved.
+    """
+    with _get_conn() as conn:
+        try:
+            with conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                cur.execute(
+                    "SELECT * FROM replenishment_requests WHERE id = %s FOR UPDATE",
+                    (request_id,),
+                )
+                req = cur.fetchone()
+                if req is None:
+                    raise ValueError("Solicitud no encontrada.")
+                if req["estado"] != REPO_PENDIENTE:
+                    raise ValueError(
+                        "Solo se pueden aprobar solicitudes en estado Pendiente. "
+                        f"Estado actual: {REPO_STATUS_LABELS.get(req['estado'], req['estado'])}"
+                    )
+
+                stock_anterior = None
+                stock_nuevo = None
+                if req["product_id"]:
+                    cur.execute(
+                        "SELECT stock FROM products WHERE id = %s FOR UPDATE",
+                        (req["product_id"],),
+                    )
+                    prod = cur.fetchone()
+                    if prod:
+                        stock_anterior = prod["stock"]
+                        stock_nuevo = stock_anterior + cantidad_aprobada
+                        cur.execute(
+                            "UPDATE products SET stock = %s WHERE id = %s",
+                            (stock_nuevo, req["product_id"]),
+                        )
+                        # Register entrada movement for traceability.
+                        cur.execute(
+                            """
+                            INSERT INTO movements
+                                (product_id, tipo, cantidad, nota,
+                                 usuario_rol, sede)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            """,
+                            (
+                                req["product_id"],
+                                MOVEMENT_ENTRADA,
+                                cantidad_aprobada,
+                                f"Reposición aprobada — Solicitud #{request_id}",
+                                usuario_rol,
+                                req["sede"],
+                            ),
+                        )
+
+                cur.execute(
+                    """
+                    UPDATE replenishment_requests SET
+                        estado = %s,
+                        cantidad_aprobada = %s,
+                        aprobado_por = %s,
+                        stock_anterior = %s,
+                        stock_nuevo = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        REPO_APROBADA,
+                        cantidad_aprobada,
+                        usuario_rol,
+                        stock_anterior,
+                        stock_nuevo,
+                        request_id,
+                    ),
+                )
+            conn.commit()
+            return {"stock_anterior": stock_anterior, "stock_nuevo": stock_nuevo}
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def reject_replenishment_request(
+    request_id: int,
+    motivo: str,
+    usuario_rol: str,
+) -> None:
+    """Reject a replenishment request (no stock change).
+
+    Raises ValueError if the request is not in Pendiente state.
+    """
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT estado FROM replenishment_requests "
+                    "WHERE id = %s FOR UPDATE",
+                    (request_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise ValueError("Solicitud no encontrada.")
+                if row[0] != REPO_PENDIENTE:
+                    raise ValueError(
+                        "Solo se pueden rechazar solicitudes en estado Pendiente."
+                    )
+                cur.execute(
+                    """
+                    UPDATE replenishment_requests SET
+                        estado = %s, motivo_rechazo = %s, aprobado_por = %s
+                    WHERE id = %s
+                    """,
+                    (REPO_RECHAZADA, motivo.strip(), usuario_rol, request_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def attend_replenishment_request(request_id: int, usuario_rol: str) -> None:
+    """Mark an approved replenishment as attended (no stock change)."""
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT estado FROM replenishment_requests "
+                    "WHERE id = %s FOR UPDATE",
+                    (request_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise ValueError("Solicitud no encontrada.")
+                if row[0] != REPO_APROBADA:
+                    raise ValueError(
+                        "Solo se pueden marcar como atendidas las solicitudes Aprobadas."
+                    )
+                cur.execute(
+                    "UPDATE replenishment_requests SET estado = %s WHERE id = %s",
+                    (REPO_ATENDIDA, request_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
 def set_replenishment_status(request_id: int, estado: str) -> None:
-    """Change a request's status (GERENCIA only, enforced by the view)."""
+    """Change a request's status (legacy helper — prefer the specific approve/
+    reject/attend functions for the new workflow).
+    """
     if estado not in REPO_STATUS_LABELS:
         raise ValueError(f"Estado de solicitud inválido: {estado}")
     with _get_conn() as conn:
