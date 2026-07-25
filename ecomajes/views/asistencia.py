@@ -38,8 +38,9 @@ def render(ctx: dict) -> None:
             horizontal=True,
         )
         observaciones = st.text_area(
-            "Observaciones (opcional)",
-            placeholder="Agrega cualquier nota relevante…",
+            "Justificación (opcional)",
+            placeholder="Indica el motivo de una tardanza, salida anticipada u otra situación relevante…",
+            help="Indica el motivo de una tardanza, salida anticipada u otra situación que requiera explicación.",
         )
         submitted = st.form_submit_button("💾 Guardar asistencia", use_container_width=True)
 
@@ -66,7 +67,7 @@ def render(ctx: dict) -> None:
                     f"✅ **{tipo_label}** registrada para **{nombre.strip()}** "
                     f"— {now.strftime('%H:%M')} del {now.strftime('%d/%m/%Y')}."
                 )
-                st.rerun()
+            st.rerun()
 
     st.divider()
     st.subheader("Registros recientes")
@@ -83,7 +84,7 @@ def render(ctx: dict) -> None:
             "Trabajador": r["trabajador"],
             "Tipo": "Entrada" if r["tipo"] == TIPO_ENTRADA else "Salida",
             "Sede": r["sede"],
-            "Observaciones": r["observaciones"] or "—",
+            "Justificación": r["observaciones"] or "—",
         }
         for r in registros
     ]

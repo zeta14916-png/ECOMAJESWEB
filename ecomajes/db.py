@@ -248,6 +248,35 @@ def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
                 END $$;
                 """
             )
+            # Ingresos adicionales: agregar método de ingreso.
+            cur.execute(
+                "ALTER TABLE ingresos_adicionales "
+                "ADD COLUMN IF NOT EXISTS metodo_ingreso TEXT"
+            )
+            # Ingresos adicionales: agregar hora de registro.
+            cur.execute(
+                "ALTER TABLE ingresos_adicionales "
+                "ADD COLUMN IF NOT EXISTS hora TIME"
+            )
+            # Ingresos adicionales: agregar observación opcional.
+            cur.execute(
+                "ALTER TABLE ingresos_adicionales "
+                "ADD COLUMN IF NOT EXISTS observacion TEXT"
+            )
+            # Caja chica: agregar justificación (columna separada de observaciones).
+            cur.execute(
+                "ALTER TABLE caja_chica "
+                "ADD COLUMN IF NOT EXISTS justificacion TEXT"
+            )
+            # Reposicion: agregar cantidad_solicitada y motivo explícitos.
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS cantidad_solicitada NUMERIC(12,2)"
+            )
+            cur.execute(
+                "ALTER TABLE replenishment_requests "
+                "ADD COLUMN IF NOT EXISTS motivo TEXT"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1397,6 +1426,7 @@ def save_caja_chica(
     dinero_contado: Decimal,
     observaciones: str | None,
     usuario_rol: str | None,
+    justificacion: str | None = None,
 ) -> None:
     """Record a petty-cash balance check (NOT counted as income)."""
     diferencia = dinero_contado - monto_base
@@ -1407,11 +1437,12 @@ def save_caja_chica(
                     """
                     INSERT INTO caja_chica
                         (fecha, sede, monto_base, dinero_contado, diferencia,
-                         observaciones, usuario_rol)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                         observaciones, usuario_rol, justificacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (fecha, sede, monto_base, dinero_contado, diferencia,
-                     observaciones or None, usuario_rol),
+                     observaciones or None, usuario_rol,
+                     justificacion or None),
                 )
             conn.commit()
         except Exception:
@@ -1431,7 +1462,8 @@ def list_caja_chica(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
         "SELECT id, fecha, sede, monto_base, dinero_contado, diferencia, "
-        "observaciones, usuario_rol, created_at "
+        "observaciones, usuario_rol, created_at, "
+        "COALESCE(justificacion, observaciones) as justificacion "
         f"FROM caja_chica {where} ORDER BY fecha DESC, id DESC"
     )
     with _get_conn() as conn:
@@ -1449,15 +1481,19 @@ def add_ingreso_adicional(
     descripcion: str,
     monto: Decimal,
     usuario_rol: str | None,
+    metodo_ingreso: str | None = None,
+    hora=None,
+    observacion: str | None = None,
 ) -> None:
     with _get_conn() as conn:
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO ingresos_adicionales "
-                    "(fecha, sede, descripcion, monto, usuario_rol) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (fecha, sede, descripcion, monto, usuario_rol),
+                    "(fecha, sede, descripcion, monto, usuario_rol, metodo_ingreso, hora, observacion) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (fecha, sede, descripcion, monto, usuario_rol,
+                     metodo_ingreso or None, hora or None, observacion or None),
                 )
             conn.commit()
         except Exception:
@@ -1476,7 +1512,8 @@ def list_ingresos_adicionales(
     )
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
-        "SELECT id, fecha, sede, descripcion, monto, usuario_rol, created_at "
+        "SELECT id, fecha, sede, descripcion, monto, usuario_rol, created_at, "
+        "COALESCE(metodo_ingreso, 'efectivo') as metodo_ingreso, hora, observacion "
         f"FROM ingresos_adicionales {where} ORDER BY fecha DESC, id DESC"
     )
     with _get_conn() as conn:

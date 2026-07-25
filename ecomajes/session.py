@@ -11,6 +11,8 @@ KEY_ROLE = "role"
 KEY_SEDE = "sede"
 KEY_AUTHENTICATED = "authenticated"
 KEY_ACTIVE_PAGE = "active_page"
+KEY_USERNAME = "username"      # nombre de usuario autenticado
+KEY_USER_NOMBRE = "user_nombre"  # nombre completo del empleado
 
 
 def init_state() -> None:
@@ -19,6 +21,8 @@ def init_state() -> None:
     st.session_state.setdefault(KEY_SEDE, None)
     st.session_state.setdefault(KEY_AUTHENTICATED, False)
     st.session_state.setdefault(KEY_ACTIVE_PAGE, None)
+    st.session_state.setdefault(KEY_USERNAME, None)
+    st.session_state.setdefault(KEY_USER_NOMBRE, None)
 
 
 def is_authenticated() -> bool:
@@ -26,12 +30,14 @@ def is_authenticated() -> bool:
     return bool(st.session_state.get(KEY_AUTHENTICATED))
 
 
-def authenticate(role: str) -> None:
+def authenticate(role: str, username: str | None = None, nombre: str | None = None) -> None:
     """Mark a role as authenticated. The scope (sede) is chosen afterwards."""
     st.session_state[KEY_ROLE] = role
     st.session_state[KEY_SEDE] = None
     st.session_state[KEY_AUTHENTICATED] = True
     st.session_state[KEY_ACTIVE_PAGE] = None
+    st.session_state[KEY_USERNAME] = username or role
+    st.session_state[KEY_USER_NOMBRE] = nombre or username or role
 
 
 def set_scope(sede: str) -> None:
@@ -51,6 +57,8 @@ def logout() -> None:
     st.session_state[KEY_SEDE] = None
     st.session_state[KEY_AUTHENTICATED] = False
     st.session_state[KEY_ACTIVE_PAGE] = None
+    st.session_state[KEY_USERNAME] = None
+    st.session_state[KEY_USER_NOMBRE] = None
 
 
 def current_role() -> str | None:
@@ -67,3 +75,13 @@ def active_page() -> str | None:
 
 def set_active_page(page_key: str) -> None:
     st.session_state[KEY_ACTIVE_PAGE] = page_key
+
+
+def current_username() -> str | None:
+    """Retorna el nombre de usuario (login) de la sesión activa."""
+    return st.session_state.get(KEY_USERNAME)
+
+
+def current_user_nombre() -> str | None:
+    """Retorna el nombre completo del empleado autenticado."""
+    return st.session_state.get(KEY_USER_NOMBRE)

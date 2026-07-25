@@ -1,0 +1,461 @@
+Actúa como desarrollador senior experto en Python, Streamlit, PostgreSQL y sistemas ERP.
+
+Estamos trabajando en ECOMAJES ERP, un sistema para una empresa dedicada a la venta y control de metales, tubos redondos, tubos cuadrados, tubos rectangulares, TR4, perfiles, planchas, barras y productos de acero.
+
+La aplicación ya tiene una estructura, módulos, funciones y diseño aprobados.
+
+Tu tarea es realizar únicamente las correcciones indicadas en este prompt.
+
+IMPORTANTE:
+
+- No cambies la estructura del ERP.
+- No cambies nombres de módulos.
+- No cambies navegación.
+- No cambies permisos.
+- No elimines funciones.
+- No rediseñes toda la aplicación.
+- No modifiques módulos que no están relacionados con estas correcciones.
+- Conserva el diseño actual.
+- Conserva la base de datos y las funciones existentes.
+- Revisa primero el proyecto y modifica únicamente lo necesario.
+- Si una función ya existe y funciona, no la reemplaces.
+- No uses datos falsos.
+- Mantén compatibilidad con GitHub y Railway.
+- El proyecto ya está vinculado con GitHub y Railway.
+
+==================================================
+1. CONTROL DE ASISTENCIA DEL OPERARIO
+==================================================
+
+En el módulo:
+
+OPERARIO > Control de Asistencia
+
+Cambiar únicamente el texto:
+
+“Observaciones (opcional)”
+
+por:
+
+“Justificación (opcional)”
+
+También cambiar el texto de ayuda por algo como:
+
+“Indica el motivo de una tardanza, salida anticipada u otra situación...”
+
+IMPORTANTE:
+
+- No cambiar el funcionamiento del registro.
+- No cambiar Entrada ni Salida.
+- No modificar la fecha, hora o sede automáticas.
+- Si la base de datos usa una columna llamada observaciones, puede mantenerse internamente para evitar errores.
+- En la interfaz debe mostrarse “Justificación”.
+- Recursos Humanos debe poder consultar posteriormente esta justificación.
+
+==================================================
+2. INICIO DE SESIÓN DEL ÁREA ADMINISTRATIVA Y GERENCIA
+==================================================
+
+Actualmente se muestra Rol y Contraseña.
+
+Agregar un campo llamado:
+
+“Usuario”
+
+Debe aparecer antes del campo Contraseña.
+
+El formulario debe quedar así:
+
+1. Rol.
+2. Usuario.
+3. Contraseña.
+4. Botón Ingresar.
+
+Debe aplicarse a:
+
+- Área Administrativa.
+- Gerencia.
+
+Validaciones:
+
+- No permitir ingresar sin usuario.
+- No permitir ingresar sin contraseña.
+- Validar que el usuario corresponda al rol seleccionado.
+- Mostrar mensajes claros cuando las credenciales sean incorrectas.
+
+Guardar en la sesión:
+
+- Nombre del usuario.
+- Rol.
+- Sede o ámbito seleccionado.
+
+Este usuario debe utilizarse automáticamente para registrar:
+
+- Quién realizó una venta.
+- Quién registró una entrada o salida.
+- Quién solicitó una reposición.
+- Quién registró ingresos adicionales.
+- Quién modificó información autorizada.
+- Fecha y hora de la acción.
+
+No mostrar ni guardar contraseñas en texto visible.
+
+==================================================
+3. ENCABEZADO AZUL DE ECOMAJES ERP
+==================================================
+
+En algunas páginas el encabezado azul superior aparece cortado o no ocupa correctamente el ancho disponible.
+
+Corregir únicamente su presentación.
+
+Debe mostrar completo:
+
+- Logo de ECOMAJES.
+- ECOMAJES ERP.
+- Eslogan: “Todo acero para tus proyectos”.
+- Rol actual.
+- Sede o ámbito seleccionado.
+- Usuario actual.
+
+El fondo azul debe:
+
+- Ocupar correctamente todo el ancho del área principal.
+- No quedar cortado.
+- No salir fuera de la pantalla.
+- Mantener bordes suaves.
+- Mantener el contenido alineado.
+- Adaptarse a computadora, laptop y tablet.
+- No quedar oculto debajo del menú lateral.
+- No modificar la navegación.
+
+Conservar los colores actuales del logo y del diseño.
+
+==================================================
+4. REPOSICIÓN DENTRO DEL INVENTARIO
+==================================================
+
+En el módulo Inventario ya aparece el botón:
+
+“Reposición”
+
+Cuando el usuario haga clic en Reposición, mostrar un formulario con:
+
+- Código del producto.
+- Descripción del producto.
+- Stock actual.
+- Estado del stock.
+- Campo numérico: “Cantidad solicitada”.
+- Campo: “Motivo”.
+- Usuario solicitante.
+- Sede.
+- Fecha automática.
+- Hora automática.
+- Botón: “Enviar solicitud”.
+
+La cantidad solicitada debe:
+
+- Ser obligatoria.
+- Ser mayor que cero.
+- Ser un número válido.
+- No permitir valores negativos.
+
+Al guardar:
+
+- Registrar la cantidad solicitada.
+- Registrar el producto.
+- Registrar el stock actual.
+- Registrar usuario, sede, fecha y hora.
+- Guardar el estado inicial como “Pendiente”.
+- Enviar la solicitud a Gerencia.
+- Mostrar el botón “Solicitado” si ya existe una solicitud pendiente.
+
+No permitir solicitudes pendientes duplicadas para el mismo producto y la misma sede sin mostrar una advertencia.
+
+No crear un módulo independiente para iniciar la reposición.
+
+Debe continuar dentro de Inventario.
+
+==================================================
+5. INGRESOS ADICIONALES
+==================================================
+
+En Reporte de Ventas, dentro de:
+
+“Ingresos Adicionales”
+
+Agregar un campo obligatorio llamado:
+
+“Método de ingreso”
+
+Opciones:
+
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+El formulario debe registrar:
+
+- Fecha.
+- Sede.
+- Descripción.
+- Monto.
+- Método de ingreso.
+- Usuario que registró.
+- Hora.
+- Observación opcional.
+
+No permitir guardar un ingreso adicional sin:
+
+- Descripción.
+- Monto mayor que cero.
+- Método de ingreso.
+
+Los ingresos adicionales deben mostrarse separados por método:
+
+- Ingresos adicionales en Efectivo.
+- Ingresos adicionales por Yape.
+- Ingresos adicionales por Plin.
+- Ingresos adicionales por Transferencia.
+
+No mezclarlos con las ventas.
+
+Sí deben incluirse correctamente en el resumen financiero del periodo.
+
+==================================================
+6. CAJA CHICA — LÓGICA CLARA
+==================================================
+
+Caja Chica es un fondo fijo.
+
+Ejemplo:
+
+Monto base de Caja Chica: S/ 100.00
+
+Ese monto debe conservarse y no debe considerarse venta ni ingreso.
+
+Debe registrar:
+
+- Monto base.
+- Dinero contado.
+- Diferencia.
+- Estado de la diferencia.
+- Justificación.
+- Usuario.
+- Sede.
+- Fecha.
+- Hora.
+
+La fórmula es:
+
+Diferencia = Dinero contado - Monto base
+
+Interpretación:
+
+1. Si la diferencia es igual a 0:
+
+- Mostrar estado: “Caja correcta”.
+- No existe sobrante ni faltante.
+- El monto base permanece completo.
+
+Ejemplo:
+
+Monto base: S/ 100.00
+Dinero contado: S/ 100.00
+Diferencia: S/ 0.00
+
+Resultado:
+
+- La Caja Chica conserva S/ 100.00.
+- No falta dinero.
+- No sobra dinero.
+- No se registra ganancia por Caja Chica.
+
+2. Si la diferencia es mayor que 0:
+
+- Mostrar estado: “Sobrante”.
+- El monto base debe conservarse.
+- Solo el dinero que excede el monto base debe mostrarse como sobrante.
+- El sobrante debe registrarse por separado.
+- No debe aumentar automáticamente el monto base.
+- El sobrante puede incluirse en el resumen como ingreso adicional o dinero por rendir, según corresponda.
+- Debe registrar usuario, sede, fecha y hora.
+
+Ejemplo:
+
+Monto base: S/ 100.00
+Dinero contado: S/ 130.00
+Sobrante: S/ 30.00
+
+Resultado:
+
+- S/ 100.00 permanecen como Caja Chica.
+- S/ 30.00 se registran como sobrante.
+- No duplicar ese sobrante como ingreso.
+
+3. Si la diferencia es menor que 0:
+
+- Mostrar estado: “Faltante”.
+- Mostrar claramente cuánto dinero falta.
+- Pedir una justificación obligatoria.
+- No registrar el faltante como ganancia o ingreso.
+- Guardar usuario, sede, fecha y hora.
+
+Ejemplo:
+
+Monto base: S/ 100.00
+Dinero contado: S/ 75.00
+Faltante: S/ 25.00
+
+Resultado:
+
+- Mostrar que faltan S/ 25.00.
+- Exigir justificación.
+- Mantener trazabilidad.
+
+IMPORTANTE:
+
+- Caja Chica nunca se suma al total vendido.
+- Caja Chica nunca se considera ingreso.
+- El monto base debe mantenerse separado.
+- El sobrante debe mostrarse por separado.
+- El faltante debe mostrarse por separado.
+- No duplicar el sobrante como ingreso.
+- No modificar el monto base automáticamente.
+
+El resumen debe mostrar:
+
+- Monto base.
+- Dinero contado.
+- Sobrante.
+- Faltante.
+- Diferencia.
+- Estado.
+- Justificación.
+
+==================================================
+7. RESUMEN FINAL DEL PERIODO
+==================================================
+
+Mantener toda la información actual, pero mejorar únicamente su organización visual.
+
+Debe mostrarse de forma más dinámica, limpia y fácil de leer mediante tarjetas o bloques.
+
+Organizar en secciones:
+
+A. VENTAS
+
+- Total vendido.
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+B. INGRESOS ADICIONALES
+
+- Total de ingresos adicionales.
+- Efectivo.
+- Yape.
+- Plin.
+- Transferencia.
+
+C. EGRESOS Y OTROS
+
+- Gastos.
+- Entrega de sobres.
+- Deudores, cuando corresponda.
+
+D. CAJA CHICA
+
+- Monto base.
+- Dinero contado.
+- Sobrante.
+- Faltante.
+- Diferencia.
+- Estado.
+
+E. RESUMEN GENERAL
+
+- Ventas totales.
+- Ingresos adicionales.
+- Gastos.
+- Total neto del periodo.
+
+IMPORTANTE:
+
+- Caja Chica no debe sumarse como ingreso.
+- Los valores deben calcularse con datos reales.
+- No duplicar cantidades.
+- Mantener separación por método de pago.
+- Usar tarjetas bien alineadas.
+- Evitar textos amontonados.
+- Mantener el diseño azul, verde, blanco y gris de ECOMAJES.
+- Debe verse correctamente en laptop, computadora y tablet.
+
+==================================================
+8. PRUEBAS OBLIGATORIAS
+==================================================
+
+Antes de finalizar, probar:
+
+1. Registrar asistencia y verificar que aparezca “Justificación”.
+2. Iniciar sesión en Área Administrativa con Usuario y Contraseña.
+3. Iniciar sesión en Gerencia con Usuario y Contraseña.
+4. Confirmar que el usuario quede guardado en la sesión.
+5. Registrar una venta y confirmar que se guarde el usuario responsable.
+6. Revisar que el encabezado azul se muestre completo.
+7. Solicitar reposición indicando una cantidad.
+8. Registrar ingreso adicional en Efectivo.
+9. Registrar ingreso adicional en Yape.
+10. Registrar ingreso adicional en Plin.
+11. Registrar ingreso adicional en Transferencia.
+12. Probar Caja Chica con diferencia 0.
+13. Probar Caja Chica con sobrante.
+14. Probar Caja Chica con faltante.
+15. Confirmar que el faltante exige justificación.
+16. Comprobar que Caja Chica no se sume como ingreso.
+17. Comprobar que el Resumen Final muestre todos los importes correctamente.
+
+==================================================
+9. GITHUB Y RAILWAY
+==================================================
+
+El proyecto ya está vinculado con GitHub y Railway.
+
+Por cada cambio realizado:
+
+1. Guarda los cambios.
+2. Verifica que la aplicación siga funcionando.
+3. Ejecuta las pruebas relacionadas con ese cambio.
+4. Corrige cualquier error.
+5. Haz un commit con un mensaje claro y descriptivo.
+6. Realiza push al repositorio GitHub del proyecto.
+7. Verifica que el push se haya completado correctamente.
+8. No modifiques la configuración existente de Railway.
+9. Verifica que Railway despliegue automáticamente los cambios desde GitHub.
+10. Confirma que la aplicación publicada funciona correctamente.
+11. No afirmes que el push o el despliegue se realizó si no pudiste comprobarlo.
+
+Ejemplo de mensaje de commit:
+
+fix: mejorar login, reposición, caja chica y resumen de ventas
+
+==================================================
+AL FINALIZAR
+==================================================
+
+Indica:
+
+- Archivos revisados.
+- Archivos modificados.
+- Cambios realizados.
+- Resultado de las pruebas.
+- Mensaje del commit.
+- Rama utilizada.
+- Hash del commit.
+- Confirmación del push a GitHub.
+- Confirmación de que GitHub quedó actualizado.
+- Confirmación del despliegue en Railway.
+- Confirmación de que la aplicación publicada funciona.
+- Confirmación de que no modificaste otros módulos.
+- Confirmación de que la estructura y las funcionalidades anteriores se conservaron.

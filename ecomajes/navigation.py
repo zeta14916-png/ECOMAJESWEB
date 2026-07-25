@@ -304,10 +304,14 @@ def _render_sidebar(nav: list) -> None:
         # ── Info de sesión ─────────────────────────────────────
         role = session.current_role()
         sede = session.current_sede()
+        username = session.current_username()
+        nombre = session.current_user_nombre()
         scope_label = "Ámbito" if role == config.ROLE_GERENCIA else "Sede"
+        display_user = nombre or username or role
         st.markdown(
             f"<div style='font-size:0.8rem;line-height:1.7;'>"
-            f"👤 <b>{role}</b><br>"
+            f"👤 <b>{display_user}</b><br>"
+            f"🏷️ Rol: <b>{role}</b><br>"
             f"📍 {scope_label}: <b>{sede}</b>"
             f"</div>",
             unsafe_allow_html=True,
@@ -349,6 +353,8 @@ def _breadcrumb(role: str, sede: str, group_label: str | None) -> str:
 def _build_context(page, group_label, role, sede, route) -> dict:
     """Assemble the context dict passed to a real view."""
     include_all = sede == config.SEDE_EMPRESA_COMPLETA
+    username = session.current_username() or role
+    nombre = session.current_user_nombre() or username
     return {
         "title": page.label,
         "breadcrumb": _breadcrumb(role, sede, group_label),
@@ -357,16 +363,21 @@ def _build_context(page, group_label, role, sede, route) -> dict:
         "include_all_sedes": include_all,
         "editable": route.get("editable", False),
         "focus_add": route.get("focus_add", False),
-        "usuario_rol": role,
+        "usuario_rol": f"{role} / {username}",
+        "usuario": username,
+        "usuario_nombre": nombre,
+        "role": role,
         "sede_options": [config.SEDE_PRINCIPAL, config.SEDE_SUCURSAL],
     }
 
 
 def _render_top_header(role: str, sede: str) -> None:
     """Encabezado de marca en la zona de contenido principal."""
-    from ecomajes import styles
     from pathlib import Path
     import base64
+
+    username = session.current_username() or role
+    nombre = session.current_user_nombre() or username
 
     logo_path = Path(__file__).parent.parent / "assets" / "logo_ecomajes.png"
     logo_tag = ""
@@ -381,13 +392,14 @@ def _render_top_header(role: str, sede: str) -> None:
         f"""
         <div class="ecomajes-header">
             {logo_tag}
-            <div>
+            <div style="flex:1;min-width:0;">
                 <div class="eco-title">ECOMAJES ERP</div>
                 <div class="eco-slogan">Todo acero para tus proyectos</div>
             </div>
-            <div class="eco-meta">
-                <span class="eco-badge">👤 {role}</span>
+            <div class="eco-meta" style="white-space:nowrap;">
+                <span class="eco-badge">🏷️ {role}</span>
                 <span class="eco-badge">📍 {sede}</span>
+                <span class="eco-badge">👤 {nombre}</span>
             </div>
         </div>
         """,

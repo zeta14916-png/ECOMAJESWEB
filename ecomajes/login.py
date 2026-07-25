@@ -2,9 +2,9 @@
 
 Two steps:
 
-1. `render_login` — select the role and (when required) enter the password.
-   Location/scope options are never shown here, so they cannot be seen before
-   the correct password is entered.
+1. `render_login` — select the role and (when required) enter the username and
+   password. Location/scope options are never shown here, so they cannot be
+   seen before the correct credentials are entered.
 2. `render_scope_selection` — shown only after a successful login; the user
    picks the location/scope from a card layout. GERENCIA additionally sees the
    consolidated "Empresa Completa" scope.
@@ -80,7 +80,6 @@ def _login_css() -> str:
 
 
 def render_login() -> None:
-    from ecomajes import styles
     from pathlib import Path
     import base64
 
@@ -108,22 +107,68 @@ def render_login() -> None:
     with col:
         role = st.selectbox("Rol", config.ROLES, index=0)
 
+        username = ""
         password = ""
-        if auth.requires_password(role):
+
+        if auth.requires_username(role):
+            username = st.text_input(
+                "Usuario",
+                placeholder="Tu nombre de usuario",
+                help="Ingresa tu nombre de usuario asignado.",
+            )
             password = st.text_input("Contraseña", type="password")
 
         if st.button("🔐 Ingresar", type="primary", use_container_width=True):
-            if auth.verify_password(role, password):
-                session.authenticate(role)
-                db.log_audit(
-                    db.AUDIT_LOGIN,
-                    "Autenticación",
-                    detalle=f"Ingreso como {role}",
-                    usuario_rol=role,
-                )
-                st.rerun()
+            if auth.requires_username(role):
+                # Validar usuario y contraseña
+                if not username.strip():
+                    st.error("El campo Usuario es obligatorio.")
+                elif not password:
+                    st.error("El campo Contraseña es obligatorio.")
+                else:
+                    ok, emp = auth.validate_login(role, username.strip(), password)
+                    if ok:
+                        nombre = emp["nombre"] if emp else username.strip()
+                        session.authenticate(role, username=username.strip(), nombre=nombre)
+                        db.log_audit(
+                            db.AUDIT_LOGIN,
+                            "Autenticación",
+                            detalle=f"Ingreso como {role} · usuario: {username.strip()}",
+                            usuario_rol=f"{role} / {username.strip()}",
+                        )
+                        st.rerun()
+                    else:
+                        if auth.find_employee_by_username(username.strip(), role) is None:
+                            # No existe el usuario en DB → verificar si al menos la
+                            # contraseña env var es correcta para dar mejor mensaje
+                            if auth.verify_password(role, password):
+                                # Contraseña correcta pero usuario no registrado
+                                # Permitir acceso con usuario como nombre
+                                session.authenticate(role, username=username.strip(), nombre=username.strip())
+                                db.log_audit(
+                                    db.AUDIT_LOGIN,
+                                    "Autenticación",
+                                    detalle=f"Ingreso como {role} · usuario: {username.strip()} (sin perfil)",
+                                    usuario_rol=f"{role} / {username.strip()}",
+                                )
+                                st.rerun()
+                            else:
+                                st.error("Usuario o contraseña incorrectos.")
+                        else:
+                            st.error("Contraseña incorrecta.")
             else:
-                st.error("Contraseña incorrecta.")
+                # OPERARIOS: sin usuario ni contraseña
+                if auth.verify_password(role, password):
+                    session.authenticate(role, username=role)
+                    db.log_audit(
+                        db.AUDIT_LOGIN,
+                        "Autenticación",
+                        detalle=f"Ingreso como {role}",
+                        usuario_rol=role,
+                    )
+                    st.rerun()
+                else:
+                    st.error("Contraseña incorrecta.")
 
 
 def _scope_css(selected_meta: dict) -> str:

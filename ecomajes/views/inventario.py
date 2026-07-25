@@ -9,7 +9,7 @@ Stock status uses fixed numeric thresholds (same for all roles):
   🔴 Stock crítico  — stock < 10
   🟡 Stock bajo     — 10 ≤ stock < 20
   🟢 Disponible     — stock ≥ 20
-Products in crítico/bajo also show a Reposición button below the table.
+Products in crítico/bajo also show a Reposición button that abre un formulario.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -118,6 +118,114 @@ def _add_product_form(ctx) -> None:
                 st.rerun()
 
 
+def _reposicion_form(p: dict, ctx: dict) -> None:
+    """Muestra un formulario completo de solicitud de reposición para el producto p."""
+    pid = p["id"]
+    form_key = f"repo_form_{pid}"
+    stock = _num(p["stock"])
+    estado_label = _estado_semaforo(stock)
+
+    # Inicializar estado de apertura del formulario
+    if form_key not in st.session_state:
+        st.session_state[form_key] = False
+
+    open_ids = db.open_replenishment_product_ids(
+        sede=None if ctx["include_all_sedes"] else ctx["sede"],
+        material_tipo=ctx["material_tipo"],
+    )
+
+    col_info, col_btn = st.columns([4, 1])
+    with col_info:
+        st.markdown(
+            f"**{p.get('codigo') or '—'}** · "
+            f"{p.get('descripcion') or p['nombre']} · "
+            f"{estado_label} · Stock: **{float(stock)}**"
+        )
+    with col_btn:
+        if pid in open_ids:
+            st.button(
+                "✅ Solicitado",
+                key=f"repo_sent_{pid}",
+                disabled=True,
+            )
+        else:
+            if st.button("📦 Reposición", key=f"repo_{pid}"):
+                st.session_state[form_key] = True
+                st.rerun()
+
+    # Mostrar formulario si fue abierto
+    if st.session_state.get(form_key) and pid not in open_ids:
+        with st.form(f"repo_detail_form_{pid}", clear_on_submit=False):
+            st.markdown("##### 📦 Solicitar Reposición")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.text_input("Código", value=p.get("codigo") or "—", disabled=True, key=f"rc_{pid}")
+                st.text_input("Stock actual", value=str(float(stock)), disabled=True, key=f"rs_{pid}")
+                st.text_input("Estado", value=estado_label, disabled=True, key=f"re_{pid}")
+            with col2:
+                st.text_input(
+                    "Descripción",
+                    value=p.get("descripcion") or p["nombre"],
+                    disabled=True,
+                    key=f"rd_{pid}",
+                )
+                st.text_input(
+                    "Usuario solicitante",
+                    value=ctx.get("usuario") or ctx.get("usuario_rol", ""),
+                    disabled=True,
+                    key=f"ru_{pid}",
+                )
+                st.text_input("Sede", value=p["sede"], disabled=True, key=f"rsede_{pid}")
+
+            cantidad_solic = st.number_input(
+                "Cantidad solicitada *",
+                min_value=1,
+                value=1,
+                step=1,
+                help="Cantidad mínima a solicitar. Debe ser mayor que cero.",
+                key=f"rcant_{pid}",
+            )
+            motivo = st.text_area(
+                "Motivo de la solicitud",
+                placeholder="Ej: Stock insuficiente para demanda semanal…",
+                key=f"rmot_{pid}",
+            )
+
+            col_sub, col_can = st.columns(2)
+            with col_sub:
+                submitted = st.form_submit_button("📤 Enviar solicitud", type="primary", use_container_width=True)
+            with col_can:
+                cancelled = st.form_submit_button("Cancelar", use_container_width=True)
+
+        if submitted:
+            if cantidad_solic <= 0:
+                st.error("La cantidad solicitada debe ser mayor que cero.")
+            else:
+                stock_minimo = _num(p.get("stock_minimo"))
+                ok = db.add_replenishment_request(
+                    product_id=pid,
+                    codigo=p.get("codigo"),
+                    descripcion=p.get("descripcion") or p["nombre"],
+                    sede=p["sede"],
+                    material_tipo=p["material_tipo"],
+                    stock_actual=stock,
+                    stock_minimo=stock_minimo,
+                    cantidad_sugerida=Decimal(str(cantidad_solic)),
+                    solicitado_por=ctx.get("usuario_rol", ctx.get("usuario_rol", "")),
+                )
+                if ok:
+                    st.success("✅ Solicitud de reposición enviada a Gerencia.")
+                else:
+                    st.info("Ya existe una solicitud pendiente para este producto.")
+                st.session_state[form_key] = False
+                st.rerun()
+
+        if cancelled:
+            st.session_state[form_key] = False
+            st.rerun()
+
+
 def render(ctx: dict) -> None:
     st.header(ctx["title"])
     st.caption(ctx["breadcrumb"])
@@ -153,56 +261,16 @@ def render(ctx: dict) -> None:
     else:
         st.info("No se encontraron productos con esos filtros.")
 
-    # --- Reposición buttons for crítico / bajo products ------------------- #
+    # --- Reposición section for crítico / bajo products ------------------- #
     alert_products = [
         p for p in products
         if _num(p["stock"]) < _BAJO_MAX
     ]
     if alert_products:
-        open_ids = db.open_replenishment_product_ids(
-            sede=None if ctx["include_all_sedes"] else ctx["sede"],
-            material_tipo=ctx["material_tipo"],
-        )
         st.divider()
         st.subheader("⚠️ Productos que requieren reposición")
         for p in alert_products:
-            stock = _num(p["stock"])
-            estado_label = _estado_semaforo(stock)
-            col_info, col_btn = st.columns([4, 1])
-            with col_info:
-                st.markdown(
-                    f"**{p.get('codigo') or '—'}** · "
-                    f"{p.get('descripcion') or p['nombre']} · "
-                    f"{estado_label} · Stock: **{float(stock)}**"
-                )
-            with col_btn:
-                pid = p["id"]
-                if pid in open_ids:
-                    st.button(
-                        "✅ Solicitado",
-                        key=f"repo_sent_{pid}",
-                        disabled=True,
-                    )
-                else:
-                    if st.button("📦 Reposición", key=f"repo_{pid}"):
-                        stock_minimo = _num(p.get("stock_minimo"))
-                        cantidad_sug = max(stock_minimo - stock, Decimal("0"))
-                        ok = db.add_replenishment_request(
-                            product_id=pid,
-                            codigo=p.get("codigo"),
-                            descripcion=p.get("descripcion") or p["nombre"],
-                            sede=p["sede"],
-                            material_tipo=p["material_tipo"],
-                            stock_actual=stock,
-                            stock_minimo=stock_minimo,
-                            cantidad_sugerida=cantidad_sug,
-                            solicitado_por=ctx["usuario_rol"],
-                        )
-                        if ok:
-                            st.success("Solicitud de reposición enviada.")
-                        else:
-                            st.info("Ya existe una solicitud abierta.")
-                        st.rerun()
+            _reposicion_form(p, ctx)
 
     if ctx["editable"]:
         _add_product_form(ctx)
