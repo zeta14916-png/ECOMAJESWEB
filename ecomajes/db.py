@@ -71,7 +71,7 @@ METODO_PAGO_LABELS = {
 }
 
 
-def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
+def _ensure_extra_schema(pool: psycopg2.pool.ThreadedConnectionPool) -> None:
     """Apply additive DDL migrations (idempotent: IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
 
     Called once at pool creation so every new feature's table/column is
@@ -286,21 +286,45 @@ def _ensure_extra_schema(pool: psycopg2.pool.SimpleConnectionPool) -> None:
 
 
 @st.cache_resource(show_spinner=False)
-def _get_pool() -> psycopg2.pool.SimpleConnectionPool:
-    """Create (once) and return a small connection pool."""
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    """Create (once) and return a thread-safe connection pool.
+
+    ThreadedConnectionPool (instead of SimpleConnectionPool) is required
+    because Streamlit serves each session in its own thread. Using the
+    simple variant without locking causes race conditions and silent
+    pool corruption under concurrent reloads or multiple open tabs.
+
+    maxconn=10 gives comfortable headroom for Streamlit's typical
+    re-render pattern (a single page may fire 3-5 queries per render)
+    without overwhelming a Railway Hobby-tier PostgreSQL instance.
+    """
     dsn = os.environ["DATABASE_URL"]
-    pool = psycopg2.pool.SimpleConnectionPool(1, 5, dsn=dsn)
+    pool = psycopg2.pool.ThreadedConnectionPool(1, 10, dsn=dsn)
     _ensure_extra_schema(pool)
     return pool
 
 
 @contextmanager
 def _get_conn():
-    """Borrow a connection from the pool and return it afterwards."""
+    """Borrow a connection from the pool and return it afterwards.
+
+    On exception the connection is rolled back before being returned so
+    that the *next* borrower does not receive a connection stuck in an
+    aborted-transaction state (which would cause an immediate failure on
+    any subsequent query).
+    """
     pool = _get_pool()
     conn = pool.getconn()
     try:
         yield conn
+    except Exception:
+        # Roll back any open transaction so the connection is clean when
+        # it goes back into the pool.
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         pool.putconn(conn)
 
