@@ -1,0 +1,94 @@
+Actúa como desarrollador senior experto en Python, Streamlit, PostgreSQL y sistemas ERP.
+
+Agrega únicamente una nueva opción dentro de:
+
+GERENCIA > PRECIOS
+
+Nombre de la opción:
+
+“Importar lista de precios desde Excel”
+
+IMPORTANTE:
+
+- No cambies la estructura actual del ERP.
+- No modifiques módulos de Operario ni Área Administrativa.
+- No cambies navegación, permisos ni lógica existente.
+- Si ya existe una función similar, complétala en vez de duplicarla.
+- Trabaja únicamente en este apartado.
+
+La opción debe permitir:
+
+1. Descargar una plantilla Excel.
+2. Subir un archivo Excel.
+3. Validar la información.
+4. Mostrar una vista previa.
+5. Confirmar la importación.
+6. Actualizar automáticamente la lista de precios.
+
+La plantilla debe incluir estas columnas:
+
+- Código
+- Descripción
+- Familia
+- Unidad
+- Precio en dólares
+- P1
+- P2
+- P3
+- Venta mínima
+- Venta oficial
+- Venta por 3 metros
+- Venta por metro
+- Observaciones
+
+Reglas:
+
+- El Código identifica al producto.
+- No permitir códigos duplicados.
+- No crear productos sin código.
+- Validar que los precios sean números válidos.
+- No permitir precios negativos.
+- Si el código ya existe, actualizar únicamente los datos de precios y descripción permitidos.
+- Si el código no existe, mostrarlo como error para revisión.
+- No modificar stock.
+- No modificar sede.
+- No modificar tipo de material.
+- No eliminar productos.
+
+Antes de guardar, mostrar:
+
+- Cantidad de registros válidos.
+- Cantidad de errores.
+- Productos que serán actualizados.
+- Vista previa de los cambios.
+
+Al confirmar:
+
+- Actualizar descripción, familia, unidad y precios.
+- Registrar usuario de Gerencia.
+- Registrar fecha y hora.
+- Guardar cambios para auditoría.
+- Mostrar mensaje de éxito.
+
+Permisos:
+
+- Solo Gerencia puede usar esta función.
+- Área Administrativa y Operario no deben verla ni usarla.
+
+Al finalizar:
+
+1. Probar la descarga de la plantilla.
+2. Probar la subida del Excel.
+3. Probar códigos válidos y códigos inexistentes.
+4. Probar precios incorrectos.
+5. Hacer commit.
+6. Hacer push a GitHub.
+7. Verificar actualización en Railway.
+
+Indica:
+- Archivos modificados.
+- Funciones agregadas.
+- Resultado de pruebas.
+- Commit realizado.
+- Confirmación del push a GitHub.
+- Confirmación del despliegue en Railway.
