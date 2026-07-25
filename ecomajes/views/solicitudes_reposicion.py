@@ -58,7 +58,10 @@ def _overview_table(requests: list[dict]) -> None:
                 "Producto": r["descripcion"],
                 "Código": r["codigo"] or "—",
                 "Stock actual": _num(r["stock_actual"]),
-                "Cant. solicitada": _num(r["cantidad_sugerida"]),
+                "Cant. solicitada": _num(
+                    r.get("cantidad_solicitada") or r.get("cantidad_sugerida")
+                ),
+                "Motivo": r.get("motivo") or "—",
                 "Cant. aprobada": _num(r.get("cantidad_aprobada")),
                 "Motivo rechazo": r.get("motivo_rechazo") or "—",
                 "Solicitado por": r["solicitado_por"],
@@ -75,6 +78,10 @@ def _card_pendiente(r: dict, ctx: dict) -> None:
     st.markdown(
         f"🟡 **Pendiente** · **{r['descripcion']}** `{r['codigo'] or '—'}` "
         f"· 📍 {r['sede']} · 👤 {r['solicitado_por']} · 🗓️ {_fmt_dt(r.get('created_at'))}"
+    )
+    st.caption(
+        f"Cantidad solicitada: **{_num(r.get('cantidad_solicitada') or r.get('cantidad_sugerida'))}**"
+        f" · Motivo: {r.get('motivo') or '—'}"
     )
     col_ap, col_rj = st.columns(2)
 
@@ -209,7 +216,9 @@ def render(ctx: dict) -> None:
     st.header(ctx["title"])
     st.caption(ctx["breadcrumb"])
 
-    if ctx["usuario_rol"] != config.ROLE_GERENCIA:
+    # `usuario_rol` includes the username for auditability
+    # ("GERENCIA / usuario"); use the dedicated role field for authorization.
+    if ctx.get("role") != config.ROLE_GERENCIA:
         st.error("Esta sección es exclusiva de GERENCIA.")
         return
 

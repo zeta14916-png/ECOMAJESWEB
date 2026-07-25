@@ -435,7 +435,9 @@ CREATE TABLE public.replenishment_requests (
     cantidad_sugerida numeric DEFAULT 0 NOT NULL,
     solicitado_por text NOT NULL,
     estado text DEFAULT 'pendiente'::text NOT NULL,
-    CONSTRAINT replenishment_requests_estado_check CHECK ((estado = ANY (ARRAY['pendiente'::text, 'en_proceso'::text, 'comprado'::text, 'recibido'::text])))
+    cantidad_solicitada numeric(12,2),
+    motivo text,
+    CONSTRAINT replenishment_requests_estado_check CHECK ((estado = ANY (ARRAY['pendiente'::text, 'aprobada'::text, 'atendida'::text, 'rechazada'::text])))
 );
 
 

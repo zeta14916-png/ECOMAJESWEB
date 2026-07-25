@@ -2773,6 +2773,8 @@ def add_replenishment_request(
     stock_minimo,
     cantidad_sugerida,
     solicitado_por: str,
+    cantidad_solicitada=None,
+    motivo: str | None = None,
 ) -> bool:
     """Create a replenishment (purchase) request for a product.
 
@@ -2798,8 +2800,8 @@ def add_replenishment_request(
                     INSERT INTO replenishment_requests
                         (product_id, codigo, descripcion, sede, material_tipo,
                          stock_actual, stock_minimo, cantidad_sugerida,
-                         solicitado_por, estado)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                          solicitado_por, estado, cantidad_solicitada, motivo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         product_id,
@@ -2812,6 +2814,8 @@ def add_replenishment_request(
                         cantidad_sugerida,
                         solicitado_por,
                         REPO_PENDIENTE,
+                        cantidad_solicitada if cantidad_solicitada is not None else cantidad_sugerida,
+                        motivo.strip() if motivo and motivo.strip() else None,
                     ),
                 )
             conn.commit()
@@ -2834,7 +2838,7 @@ def list_replenishment_requests(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = (
         "SELECT id, product_id, codigo, descripcion, sede, material_tipo, "
-        "stock_actual, stock_minimo, cantidad_sugerida, solicitado_por, "
+        "stock_actual, stock_minimo, cantidad_sugerida, cantidad_solicitada, motivo, solicitado_por, "
         "estado, created_at, cantidad_aprobada, aprobado_por, "
         "motivo_rechazo, stock_anterior, stock_nuevo "
         f"FROM replenishment_requests {where} "

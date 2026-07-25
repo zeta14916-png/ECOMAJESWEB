@@ -61,6 +61,7 @@ def render(ctx: dict) -> None:
                 )
             except Exception:  # noqa: BLE001
                 st.error("No se pudo registrar la asistencia. Inténtalo nuevamente.")
+                return
             else:
                 tipo_label = "Entrada" if tipo == TIPO_ENTRADA else "Salida"
                 st.success(

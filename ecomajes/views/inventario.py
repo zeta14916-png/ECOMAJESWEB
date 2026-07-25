@@ -213,6 +213,8 @@ def _reposicion_form(p: dict, ctx: dict) -> None:
                     stock_minimo=stock_minimo,
                     cantidad_sugerida=Decimal(str(cantidad_solic)),
                     solicitado_por=ctx.get("usuario_rol", ctx.get("usuario_rol", "")),
+                    cantidad_solicitada=Decimal(str(cantidad_solic)),
+                    motivo=motivo.strip() or None,
                 )
                 if ok:
                     st.success("✅ Solicitud de reposición enviada a Gerencia.")

@@ -410,6 +410,25 @@ hr {{
     border: 1px solid rgba(255,255,255,0.25);
     margin-left: 0.4rem;
 }}
+@media (max-width: 768px) {{
+    .ecomajes-header {{
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        padding: 0.65rem 0.85rem;
+    }}
+    .ecomajes-header .eco-meta {{
+        width: 100%;
+        margin-left: 0;
+        text-align: left;
+        white-space: normal !important;
+        line-height: 1.8;
+    }}
+    .ecomajes-header .eco-badge {{
+        display: inline-block;
+        margin-left: 0;
+        margin-right: 0.25rem;
+    }}
+}}
 </style>
 """
 
