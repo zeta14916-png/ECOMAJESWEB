@@ -761,6 +761,10 @@ def import_products(
     products (new códigos are skipped). Skipped-by-mode rows are counted
     separately and never touch the database.
 
+    Bulk implementation: pre-fetches all existing products in two queries, then
+    classifies every row in Python and writes with execute_values — O(queries)
+    stays constant regardless of catalog size.
+
     Returns counts: {"inserted", "updated", "skipped_mode", "errors",
     "error_details"}.
     """
@@ -770,115 +774,194 @@ def import_products(
     errors = 0
     error_details: list[str] = []
 
+    # ── Step 1: normalise every row in Python (zero DB calls) ──────────────
+    normalised: list[dict] = []
+    for row in rows:
+        codigo = (str(row.get("codigo") or "")).strip() or None
+        descripcion = (str(row.get("descripcion") or "")).strip()
+        if not descripcion and not codigo:
+            continue
+        unidad = (str(row.get("unidad") or "")).strip() or "UNIDAD"
+        categoria = resolve_categoria(row.get("categoria"), descripcion)
+        try:
+            stock = Decimal(str(row.get("stock") or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            stock = Decimal("0")
+        familia = (str(row.get("familia") or "")).strip() or None
+        normalised.append(
+            dict(
+                codigo=codigo,
+                descripcion=descripcion,
+                unidad=unidad,
+                categoria=categoria,
+                stock=stock,
+                familia=familia,
+            )
+        )
+
+    if not normalised:
+        return {
+            "inserted": 0,
+            "updated": 0,
+            "skipped_mode": 0,
+            "errors": 0,
+            "error_details": [],
+        }
+
     with _get_conn() as conn:
         try:
-            with conn.cursor() as cur:
-                for row in rows:
-                    codigo = (str(row.get("codigo") or "")).strip() or None
-                    descripcion = (str(row.get("descripcion") or "")).strip()
-                    if not descripcion and not codigo:
-                        continue
-                    unidad = (str(row.get("unidad") or "")).strip() or "UNIDAD"
-                    categoria = resolve_categoria(
-                        row.get("categoria"), descripcion
+            with conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                # ── Step 2: bulk-fetch existing products ────────────────────
+                # 2a. By codigo (globally unique across all sedes).
+                all_codigos = [r["codigo"] for r in normalised if r["codigo"]]
+                existing_by_codigo: dict[str, dict] = {}
+                if all_codigos:
+                    cur.execute(
+                        "SELECT id, codigo, descripcion "
+                        "FROM products WHERE codigo = ANY(%s)",
+                        (all_codigos,),
                     )
-                    try:
-                        stock = Decimal(str(row.get("stock") or 0))
-                    except (InvalidOperation, ValueError, TypeError):
-                        stock = Decimal("0")
-                    familia = (str(row.get("familia") or "")).strip() or None
+                    for rec in cur.fetchall():
+                        existing_by_codigo[rec["codigo"]] = dict(rec)
+
+                # 2b. By nombre within sede/material_tipo (for rows w/o codigo).
+                no_codigo_nombres = [
+                    r["descripcion"] or "PRODUCTO"
+                    for r in normalised
+                    if not r["codigo"]
+                ]
+                existing_by_nombre: dict[str, dict] = {}
+                if no_codigo_nombres:
+                    cur.execute(
+                        "SELECT id, nombre, descripcion FROM products "
+                        "WHERE sede = %s AND material_tipo = %s "
+                        "AND nombre = ANY(%s)",
+                        (sede, material_tipo, no_codigo_nombres),
+                    )
+                    for rec in cur.fetchall():
+                        existing_by_nombre[rec["nombre"]] = dict(rec)
+
+                # 2c. All existing nombres in this sede/tipo for conflict check.
+                cur.execute(
+                    "SELECT nombre FROM products "
+                    "WHERE sede = %s AND material_tipo = %s",
+                    (sede, material_tipo),
+                )
+                existing_nombres: set[str] = {r["nombre"] for r in cur.fetchall()}
+
+                # ── Step 3: classify rows (pure Python, no DB) ──────────────
+                to_insert: list[tuple] = []   # values for bulk INSERT
+                to_update: list[tuple] = []   # values for bulk UPDATE
+
+                for row in normalised:
+                    codigo = row["codigo"]
+                    descripcion = row["descripcion"]
+                    unidad = row["unidad"]
+                    categoria = row["categoria"]
+                    stock = row["stock"]
+                    familia = row["familia"]
 
                     try:
-                        cur.execute("SAVEPOINT sp_row")
                         existing = None
                         if codigo is not None:
-                            cur.execute(
-                                "SELECT id, descripcion FROM products "
-                                "WHERE codigo = %s",
-                                (codigo,),
-                            )
-                            existing = cur.fetchone()
+                            existing = existing_by_codigo.get(codigo)
                         elif descripcion:
-                            cur.execute(
-                                "SELECT id, descripcion FROM products "
-                                "WHERE sede = %s AND material_tipo = %s "
-                                "AND nombre = %s",
-                                (sede, material_tipo, descripcion),
+                            existing = existing_by_nombre.get(
+                                descripcion or "PRODUCTO"
                             )
-                            existing = cur.fetchone()
 
                         if existing is not None:
                             if mode == IMPORT_MODE_NEW:
                                 skipped_mode += 1
-                                cur.execute("RELEASE SAVEPOINT sp_row")
                                 continue
-                            pid, old_desc = existing
-                            cur.execute(
-                                """
-                                UPDATE products SET
-                                    descripcion = %s,
-                                    categoria = %s,
-                                    unidad = %s,
-                                    familia = COALESCE(%s, familia)
-                                WHERE id = %s
-                                """,
-                                (
-                                    _fullest(old_desc, descripcion),
-                                    categoria,
-                                    unidad,
-                                    familia,
-                                    pid,
-                                ),
-                            )
+                            pid = existing["id"]
+                            old_desc = existing.get("descripcion") or ""
+                            to_update.append((
+                                _fullest(old_desc, descripcion),
+                                categoria,
+                                unidad,
+                                familia,
+                                pid,
+                            ))
                             updated += 1
                         else:
                             if mode == IMPORT_MODE_UPDATE:
                                 skipped_mode += 1
-                                cur.execute("RELEASE SAVEPOINT sp_row")
                                 continue
                             nombre = descripcion or codigo or "PRODUCTO"
-                            cur.execute(
-                                "SELECT 1 FROM products "
-                                "WHERE sede = %s AND material_tipo = %s "
-                                "AND nombre = %s",
-                                (sede, material_tipo, nombre),
-                            )
-                            if cur.fetchone() is not None:
+                            if nombre in existing_nombres:
                                 if codigo:
                                     nombre = f"{nombre} ({codigo})"
                                 else:
                                     raise ValueError(
                                         "Nombre duplicado sin código"
                                     )
-                            cur.execute(
-                                """
-                                INSERT INTO products
-                                    (sede, material_tipo, nombre, codigo,
-                                     descripcion, categoria, unidad, stock,
-                                     familia, activo)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
-                                RETURNING id
-                                """,
-                                (
-                                    sede,
-                                    material_tipo,
-                                    nombre,
-                                    codigo,
-                                    descripcion,
-                                    categoria,
-                                    unidad,
-                                    stock,
-                                    familia,
-                                ),
-                            )
-                            pid = cur.fetchone()[0]
+                            existing_nombres.add(nombre)  # avoid intra-batch dup
+                            to_insert.append((
+                                sede,
+                                material_tipo,
+                                nombre,
+                                codigo,
+                                descripcion,
+                                categoria,
+                                unidad,
+                                stock,
+                                familia,
+                            ))
                             inserted += 1
 
-                        cur.execute("RELEASE SAVEPOINT sp_row")
                     except Exception as exc:  # noqa: BLE001
-                        cur.execute("ROLLBACK TO SAVEPOINT sp_row")
                         errors += 1
                         error_details.append(f"{codigo or descripcion}: {exc}")
+
+                # ── Step 4: bulk INSERT ─────────────────────────────────────
+                if to_insert:
+                    psycopg2.extras.execute_values(
+                        cur,
+                        """
+                        INSERT INTO products
+                            (sede, material_tipo, nombre, codigo,
+                             descripcion, categoria, unidad, stock,
+                             familia, activo)
+                        VALUES %s
+                        """,
+                        to_insert,
+                        page_size=200,
+                    )
+
+                # ── Step 5: bulk UPDATE via temp table ──────────────────────
+                if to_update:
+                    cur.execute(
+                        """
+                        CREATE TEMP TABLE _import_upd (
+                            descripcion TEXT,
+                            categoria   TEXT,
+                            unidad      TEXT,
+                            familia     TEXT,
+                            id          INTEGER
+                        ) ON COMMIT DROP
+                        """
+                    )
+                    psycopg2.extras.execute_values(
+                        cur,
+                        "INSERT INTO _import_upd VALUES %s",
+                        to_update,
+                        page_size=200,
+                    )
+                    cur.execute(
+                        """
+                        UPDATE products p SET
+                            descripcion = u.descripcion,
+                            categoria   = u.categoria,
+                            unidad      = u.unidad,
+                            familia     = COALESCE(u.familia, p.familia)
+                        FROM _import_upd u
+                        WHERE p.id = u.id
+                        """
+                    )
+
             conn.commit()
         except Exception:
             conn.rollback()
