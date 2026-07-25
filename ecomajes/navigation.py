@@ -18,6 +18,7 @@ from ecomajes.views import (
     configuracion,
     gestion_inventario,
     importar_compra,
+    importar_precios,
     importar_productos,
     importar_stock,
     inventario,
@@ -159,6 +160,12 @@ ROUTES = {
         "material_tipo": None,
         "editable": True,
     },
+    # GERENCIA — bulk price list importer from Excel.
+    "ger_importar_precios": {
+        "view": "importar_precios",
+        "material_tipo": None,
+        "editable": True,
+    },
     # GERENCIA — replenishment (purchase) requests from ALERTAS.
     "ger_solicitudes_reposicion": {
         "view": "solicitudes_reposicion",
@@ -244,6 +251,7 @@ _VIEWS = {
     "inventario": inventario.render,
     "gestion_inventario": gestion_inventario.render,
     "importar_compra": importar_compra.render,
+    "importar_precios": importar_precios.render,
     "importar_productos": importar_productos.render,
     "importar_stock": importar_stock.render,
     "movimientos": movimientos.render,

@@ -137,6 +137,16 @@ _GERENCIA_IMPORTAR = Group(
     ),
 )
 
+# Precios group: editor manual + importador desde Excel.
+_GERENCIA_PRECIOS = Group(
+    label="Precios",
+    icon="💲",
+    pages=(
+        Page("ger_precios", "Ver / Editar Precios"),
+        Page("ger_importar_precios", "Importar lista de precios desde Excel"),
+    ),
+)
+
 # Ventas group — period reports + historial + detalle general.
 _GERENCIA_VENTAS = Group(
     label="Ventas",
@@ -157,7 +167,7 @@ _GERENCIA_NAV: list = [
     _GERENCIA_VENTAS,
     Page("ger_productos", "Productos"),
     _GERENCIA_IMPORTAR,
-    Page("ger_precios", "Precios"),
+    _GERENCIA_PRECIOS,
     Page("ger_recursos_humanos", "Recursos Humanos"),
     Page("ger_gestion_inventario", "Gestión de Inventario"),
     Page("ger_solicitudes_reposicion", "Solicitudes de Reposición"),

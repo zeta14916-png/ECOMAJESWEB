@@ -1237,6 +1237,31 @@ def get_price(product_id: int) -> dict | None:
             return dict(row) if row else None
 
 
+def update_product_familia_batch(updates: list[tuple[int, str]]) -> None:
+    """Update products.familia for a list of (product_id, familia) pairs.
+
+    Used by the price list Excel importer to keep the product's family field
+    in sync without touching stock, sede, or any other inventory field.
+    Silently skips rows where familia is None or empty.
+    """
+    if not updates:
+        return
+    with _get_conn() as conn:
+        try:
+            with conn.cursor() as cur:
+                for product_id, familia in updates:
+                    if not familia:
+                        continue
+                    cur.execute(
+                        "UPDATE products SET familia = %s WHERE id = %s",
+                        (familia.strip(), product_id),
+                    )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
 # --------------------------------------------------------------------------- #
 # Movements (stock updates)
 # --------------------------------------------------------------------------- #
